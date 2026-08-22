@@ -16,6 +16,146 @@ const AppState = {
     isInitialLoaded: false
 };
 
+const EVENT_TEMPLATES_CLIENT = {
+    "CAREER_BUSINESS": {
+        "id": "CAREER_BUSINESS",
+        "name": "Career, Freelance & Business Budgets",
+        "icon": "fa-briefcase",
+        "badge_color": "#6366f1",
+        "description": "Includes client retainers, contractor payouts, carrier/shipping fees, SaaS tools, and marketing.",
+        "categories": [
+            {"name": "Client Payments & Invoices", "type": "INCOME", "color": "#10b981", "icon": "fa-briefcase"},
+            {"name": "Salary & Stipend Inflow", "type": "INCOME", "color": "#059669", "icon": "fa-money-bill-wave"},
+            {"name": "Freelance & Consulting Projects", "type": "INCOME", "color": "#14b8a6", "icon": "fa-laptop-code"},
+            {"name": "Contractor & Freelancer Wages", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-user-tie", "default_budget_pct": 25},
+            {"name": "Carrier, Freight & Shipping Payments", "type": "EXPENSE", "color": "#f97316", "icon": "fa-truck-fast", "default_budget_pct": 10},
+            {"name": "Software, SaaS & Cloud Tools", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-cloud", "default_budget_pct": 10},
+            {"name": "Marketing, Ads & Lead Gen", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-bullhorn", "default_budget_pct": 15},
+            {"name": "Hardware & Office Equipment", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-desktop", "default_budget_pct": 10},
+            {"name": "Office Rent & Coworking Space", "type": "EXPENSE", "color": "#64748b", "icon": "fa-building", "default_budget_pct": 15},
+            {"name": "Career Courses & Certifications", "type": "EXPENSE", "color": "#06b6d4", "icon": "fa-graduation-cap", "default_budget_pct": 5},
+            {"name": "Business Travel & Daily Commute", "type": "EXPENSE", "color": "#eab308", "icon": "fa-plane-departure", "default_budget_pct": 5},
+            {"name": "Client Dinners & Networking", "type": "EXPENSE", "color": "#d97706", "icon": "fa-mug-hot", "default_budget_pct": 5}
+        ]
+    },
+    "WEDDING": {
+        "id": "WEDDING",
+        "name": "Wedding & Marriage Celebration",
+        "icon": "fa-ring",
+        "badge_color": "#ec4899",
+        "description": "Complete expense and shagun tracking for wedding functions, catering, venue, and gifts.",
+        "categories": [
+            {"name": "Gifts & Shagun Received", "type": "INCOME", "color": "#10b981", "icon": "fa-gift"},
+            {"name": "Catering & Food", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-utensils", "default_budget_pct": 30},
+            {"name": "Venue & Accommodation", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-hotel", "default_budget_pct": 25},
+            {"name": "Decorations & Stage", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-holly-berry", "default_budget_pct": 15},
+            {"name": "Photography & Video", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-camera", "default_budget_pct": 10},
+            {"name": "Clothing & Jewelry", "type": "EXPENSE", "color": "#14b8a6", "icon": "fa-gem", "default_budget_pct": 10},
+            {"name": "Entertainment & DJ", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-music", "default_budget_pct": 5},
+            {"name": "Travel & Guest Logistics", "type": "EXPENSE", "color": "#f97316", "icon": "fa-car", "default_budget_pct": 5},
+            {"name": "Invitations & Printing", "type": "EXPENSE", "color": "#06b6d4", "icon": "fa-envelope-open-text"},
+            {"name": "Miscellaneous Expenses", "type": "EXPENSE", "color": "#64748b", "icon": "fa-receipt"}
+        ]
+    },
+    "BIRTHDAY": {
+        "id": "BIRTHDAY",
+        "name": "Birthday & Anniversary Party",
+        "icon": "fa-cake-candles",
+        "badge_color": "#f59e0b",
+        "description": "Track party budget, cake, catering, venue decor, games, and return gifts.",
+        "categories": [
+            {"name": "Gifts & Cash Envelopes", "type": "INCOME", "color": "#10b981", "icon": "fa-gift"},
+            {"name": "Cake & Bakery", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-cake-candles", "default_budget_pct": 15},
+            {"name": "Food & Catering", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-utensils", "default_budget_pct": 35},
+            {"name": "Venue & Balloon Decor", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-champagne-glasses", "default_budget_pct": 20},
+            {"name": "DJ & Sound System", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-music", "default_budget_pct": 10},
+            {"name": "Return Gifts & Favors", "type": "EXPENSE", "color": "#14b8a6", "icon": "fa-box-open", "default_budget_pct": 10},
+            {"name": "Photography & Video", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-camera", "default_budget_pct": 10}
+        ]
+    },
+    "POOJA_RELIGIOUS": {
+        "id": "POOJA_RELIGIOUS",
+        "name": "Pooja, Religious Ceremony & Festival",
+        "icon": "fa-om",
+        "badge_color": "#eab308",
+        "description": "Manage dakshina, pooja samagri, prasad/bhandara, tent sound, and chanda donations.",
+        "categories": [
+            {"name": "Chanda & Donations Received", "type": "INCOME", "color": "#10b981", "icon": "fa-hand-holding-dollar"},
+            {"name": "Priest / Pandit Dakshina", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-hands-praying", "default_budget_pct": 20},
+            {"name": "Pooja Samagri & Havanam", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-fire-flame-curved", "default_budget_pct": 20},
+            {"name": "Prasad, Bhog & Bhandara", "type": "EXPENSE", "color": "#10b981", "icon": "fa-bowl-food", "default_budget_pct": 25},
+            {"name": "Flowers, Garlands & Rangoli", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-spa", "default_budget_pct": 15},
+            {"name": "Tent, Sound & Lighting", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-sun", "default_budget_pct": 15},
+            {"name": "Traditional Clothes & Offerings", "type": "EXPENSE", "color": "#14b8a6", "icon": "fa-shirt", "default_budget_pct": 5}
+        ]
+    },
+    "TRAVEL_TRIP": {
+        "id": "TRAVEL_TRIP",
+        "name": "Travel, Vacation & Road Trip",
+        "icon": "fa-plane-departure",
+        "badge_color": "#0ea5e9",
+        "description": "Track group pool contributions, flights/trains, hotels, local carrier/cabs, dining, and sightseeing.",
+        "categories": [
+            {"name": "Trip Pool & Contributions", "type": "INCOME", "color": "#10b981", "icon": "fa-users-line"},
+            {"name": "Flights, Trains & Long Carrier", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-plane-departure", "default_budget_pct": 35},
+            {"name": "Hotels & Homestays", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-hotel", "default_budget_pct": 30},
+            {"name": "Dining, Street Food & Drinks", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-utensils", "default_budget_pct": 15},
+            {"name": "Local Cabs, Fuel & Carrier Logistics", "type": "EXPENSE", "color": "#f97316", "icon": "fa-taxi", "default_budget_pct": 10},
+            {"name": "Sightseeing & Activity Tickets", "type": "EXPENSE", "color": "#14b8a6", "icon": "fa-ticket", "default_budget_pct": 5},
+            {"name": "Shopping & Souvenirs", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-bag-shopping", "default_budget_pct": 5}
+        ]
+    },
+    "HOUSEHOLD_BUDGET": {
+        "id": "HOUSEHOLD_BUDGET",
+        "name": "Household & Monthly Living Budget",
+        "icon": "fa-house",
+        "badge_color": "#10b981",
+        "description": "Track monthly family income, rent, groceries, utility bills, tuition, carrier/commute, and emergency savings.",
+        "categories": [
+            {"name": "Primary Salary & Income", "type": "INCOME", "color": "#10b981", "icon": "fa-money-bill-wave"},
+            {"name": "Secondary Income & Returns", "type": "INCOME", "color": "#14b8a6", "icon": "fa-coins"},
+            {"name": "House Rent / Mortgage", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-house", "default_budget_pct": 30},
+            {"name": "Groceries & Household Supplies", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-basket-shopping", "default_budget_pct": 20},
+            {"name": "Electricity, Gas & Utilities", "type": "EXPENSE", "color": "#eab308", "icon": "fa-bolt", "default_budget_pct": 10},
+            {"name": "Vehicle Fuel, Commute & Carrier", "type": "EXPENSE", "color": "#f97316", "icon": "fa-gas-pump", "default_budget_pct": 10},
+            {"name": "Healthcare & Insurance", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-heart-pulse", "default_budget_pct": 10},
+            {"name": "Education & Child Tuition", "type": "EXPENSE", "color": "#06b6d4", "icon": "fa-graduation-cap", "default_budget_pct": 10},
+            {"name": "Dining Out & Entertainment", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-film", "default_budget_pct": 5},
+            {"name": "Emergency Fund & Savings", "type": "EXPENSE", "color": "#10b981", "icon": "fa-piggy-bank", "default_budget_pct": 5}
+        ]
+    },
+    "CONFERENCE": {
+        "id": "CONFERENCE",
+        "name": "Conference, Seminar & Corporate Event",
+        "icon": "fa-people-group",
+        "badge_color": "#a855f7",
+        "description": "Track delegate registration fees, sponsorships, venue AV, speaker honorariums, and freight logistics.",
+        "categories": [
+            {"name": "Ticket Sales & Registrations", "type": "INCOME", "color": "#10b981", "icon": "fa-ticket"},
+            {"name": "Corporate Sponsorships", "type": "INCOME", "color": "#0d9488", "icon": "fa-handshake"},
+            {"name": "Venue & Audiovisual Stage", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-building", "default_budget_pct": 30},
+            {"name": "Speaker Fees & Honorarium", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-microphone", "default_budget_pct": 20},
+            {"name": "Delegate Catering & High Tea", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-mug-hot", "default_budget_pct": 20},
+            {"name": "Freight, Courier & Carrier Logistics", "type": "EXPENSE", "color": "#f97316", "icon": "fa-truck", "default_budget_pct": 10},
+            {"name": "Badges, Kit Bags & Banners", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-id-badge", "default_budget_pct": 10},
+            {"name": "Marketing & Event PR", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-bullhorn", "default_budget_pct": 10}
+        ]
+    },
+    "GENERAL_CUSTOM": {
+        "id": "GENERAL_CUSTOM",
+        "name": "General / Custom Event",
+        "icon": "fa-tag",
+        "badge_color": "#64748b",
+        "description": "Standard income and expense categories for any general occasion.",
+        "categories": [
+            {"name": "Income / Funds Received", "type": "INCOME", "color": "#10b981", "icon": "fa-hand-holding-dollar"},
+            {"name": "Main Expenses", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-receipt", "default_budget_pct": 50},
+            {"name": "Carrier & Logistics", "type": "EXPENSE", "color": "#f97316", "icon": "fa-truck-fast", "default_budget_pct": 20},
+            {"name": "Miscellaneous Expenses", "type": "EXPENSE", "color": "#64748b", "icon": "fa-ellipsis", "default_budget_pct": 30}
+        ]
+    }
+};
+
 let categoryChartInstance = null;
 
 // ============================================================================
@@ -784,10 +924,58 @@ async function deleteCategory(categoryId) {
 }
 
 // ============================================================================
-// EVENT CREATION
+// EVENT & CATEGORY TEMPLATES, PRESETS & AUTO-BUDGETING
 // ============================================================================
+function onEventTypeTemplateChange(tplId) {
+    const tpl = EVENT_TEMPLATES_CLIENT[tplId] || EVENT_TEMPLATES_CLIENT['CAREER_BUSINESS'];
+    const descHint = document.getElementById('template-desc-hint');
+    if (descHint && tpl.description) {
+        descHint.textContent = tpl.description;
+    }
+    updateCreateEventCategoryPreview();
+}
+
+function updateCreateEventCategoryPreview() {
+    const typeSelect = document.getElementById('modal-create-event-type');
+    const container = document.getElementById('create-event-categories-preview');
+    const countBadge = document.getElementById('preview-cat-count');
+    const budgetInput = document.getElementById('modal-create-budget-limit');
+    const currSelect = document.getElementById('modal-create-currency');
+
+    if (!container || !typeSelect) return;
+
+    const tplId = typeSelect.value || 'CAREER_BUSINESS';
+    const tpl = EVENT_TEMPLATES_CLIENT[tplId] || EVENT_TEMPLATES_CLIENT['CAREER_BUSINESS'];
+    const categories = tpl.categories || [];
+    const totalBudget = parseFloat(budgetInput?.value) || 0;
+    const curr = currSelect ? currSelect.value : 'INR';
+
+    if (countBadge) countBadge.textContent = `${categories.length} Categories`;
+
+    container.innerHTML = categories.map(c => {
+        let budgetStr = '';
+        if (totalBudget > 0 && c.default_budget_pct) {
+            const alloc = Math.round((totalBudget * c.default_budget_pct) / 100);
+            budgetStr = ` <span class="font-bold opacity-90">(${curr} ${formatNumber(alloc)})</span>`;
+        } else if (c.type === 'INCOME') {
+            budgetStr = ` <span class="text-emerald-300 text-[9px]">INCOME</span>`;
+        }
+
+        return `
+            <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border"
+                  style="background-color: ${c.color}15; border-color: ${c.color}40; color: #fff">
+                <i class="fa-solid ${c.icon}" style="color: ${c.color}"></i>
+                <span class="text-[11px]">${escapeHtml(c.name)}${budgetStr}</span>
+            </span>
+        `;
+    }).join('');
+}
+
 function openCreateEventModal() {
     openModal('modal-create-event');
+    setTimeout(() => {
+        updateCreateEventCategoryPreview();
+    }, 50);
 }
 
 async function submitCreateEvent(e) {
@@ -805,7 +993,7 @@ async function submitCreateEvent(e) {
         const data = await res.json();
 
         if (res.ok && data.status === 'success') {
-            showToast('Event created successfully!', 'success');
+            showToast('Event and default categories created successfully!', 'success');
             closeModal('modal-create-event');
             setTimeout(() => {
                 location.reload();
@@ -815,6 +1003,112 @@ async function submitCreateEvent(e) {
         }
     } catch (err) {
         showToast('Error creating event', 'error');
+    }
+}
+
+// ------------------ APPLY PRESET TEMPLATES TO ACTIVE EVENT ------------------
+function openApplyTemplateModal() {
+    if (!AppState.currentEventId) {
+        showToast('Please select or create an event first.', 'warning');
+        return;
+    }
+    openModal('modal-apply-template');
+    const select = document.getElementById('apply-template-select');
+    if (select) {
+        renderApplyTemplatePreview(select.value || 'CAREER_BUSINESS');
+    }
+}
+
+function onApplyTemplateSelectChange(tplId) {
+    renderApplyTemplatePreview(tplId);
+}
+
+function renderApplyTemplatePreview(tplId) {
+    const container = document.getElementById('apply-template-preview-badges');
+    if (!container) return;
+
+    const tpl = EVENT_TEMPLATES_CLIENT[tplId] || EVENT_TEMPLATES_CLIENT['CAREER_BUSINESS'];
+    const categories = tpl.categories || [];
+
+    container.innerHTML = categories.map(c => {
+        const pctStr = c.default_budget_pct ? ` <span class="opacity-80 font-normal">(${c.default_budget_pct}%)</span>` : (c.type === 'INCOME' ? ' <span class="text-emerald-400 font-bold">(Inflow)</span>' : '');
+        return `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border"
+                  style="background-color: ${c.color}18; border-color: ${c.color}45; color: #fff">
+                <i class="fa-solid ${c.icon}" style="color: ${c.color}"></i>
+                <span class="text-[11px]">${escapeHtml(c.name)}${pctStr}</span>
+            </span>
+        `;
+    }).join('');
+}
+
+async function submitApplyTemplate() {
+    if (!AppState.currentEventId) return;
+
+    const select = document.getElementById('apply-template-select');
+    const overwriteBox = document.getElementById('apply-template-overwrite');
+    const autoBudgetBox = document.getElementById('apply-template-autobudget');
+
+    const templateId = select ? select.value : 'CAREER_BUSINESS';
+    const overwrite = overwriteBox ? overwriteBox.checked : false;
+    const autoBudget = autoBudgetBox ? autoBudgetBox.checked : true;
+
+    showToast('Applying preset template categories...', 'info');
+
+    try {
+        const res = await fetch(`/api/events/${AppState.currentEventId}/categories/apply-template`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                template_id: templateId,
+                overwrite: overwrite,
+                auto_budget: autoBudget
+            })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.status === 'success') {
+            AppState.categories = data.categories || [];
+            renderCategoriesGrid(AppState.categories);
+            populateCategoryDropdowns(AppState.categories);
+            closeModal('modal-apply-template');
+            showToast(`Preset template applied! Loaded ${data.count} categories.`, 'success');
+        } else {
+            showToast(data.message || 'Failed to apply preset template', 'error');
+        }
+    } catch (err) {
+        console.error('Failed to apply template:', err);
+        showToast('Error applying preset template', 'error');
+    }
+}
+
+// ------------------ AUTO-ALLOCATE CATEGORY BUDGETS ------------------
+async function triggerAutoAllocateBudgets() {
+    if (!AppState.currentEventId) {
+        showToast('Please select or create an event first.', 'warning');
+        return;
+    }
+
+    if (!confirm('Auto-allocate budget limits across all expense categories based on the event total budget limit?')) return;
+
+    showToast('Calculating smart category budget allocations...', 'info');
+
+    try {
+        const res = await fetch(`/api/events/${AppState.currentEventId}/categories/auto-budget`, {
+            method: 'POST'
+        });
+        const data = await res.json();
+
+        if (res.ok && data.status === 'success') {
+            AppState.categories = data.categories || [];
+            renderCategoriesGrid(AppState.categories);
+            showToast('Category budgets auto-allocated successfully!', 'success');
+        } else {
+            showToast(data.message || 'Failed to auto-allocate budgets', 'warning');
+        }
+    } catch (err) {
+        console.error('Auto budget error:', err);
+        showToast('Error distributing category budgets', 'error');
     }
 }
 

@@ -48,8 +48,26 @@ def get_current_user_profile():
 
 
 # --------------------------------------------------------------------------
-# EVENT ENDPOINTS
+# EVENT ENDPOINTS & TEMPLATES
 # --------------------------------------------------------------------------
+
+@api_bp.route("/events/templates", methods=["GET"])
+@login_required
+@log_execution
+def get_event_templates():
+    """
+    Get Available Event Templates and Preset Categories
+    ---
+    tags:
+      - Events
+    summary: Returns all built-in event templates with their category presets and suggested budget percentages
+    responses:
+      200:
+        description: Dictionary of event templates
+    """
+    templates = EventService.get_event_templates()
+    return jsonify({"status": "success", "templates": templates}), 200
+
 
 @api_bp.route("/events", methods=["GET"])
 @login_required
@@ -80,7 +98,7 @@ def create_event():
     ---
     tags:
       - Events
-    summary: Creates a new event (e.g. Wedding, Pooja, Birthday) with default categories
+    summary: Creates a new event (e.g. Career & Business, Wedding, Pooja, Birthday) with default categories
     parameters:
       - in: body
         name: body
@@ -92,10 +110,14 @@ def create_event():
           properties:
             title:
               type: string
-              example: "Brother's Grand Marriage"
+              example: "Freelance Client Q4 & Carrier Budget"
             description:
               type: string
-              example: "Wedding festivities, food, gifts and logistics tracking"
+              example: "Tracking client retainers, contractor payouts, and shipping logistics"
+            event_type:
+              type: string
+              enum: [CAREER_BUSINESS, WEDDING, BIRTHDAY, POOJA_RELIGIOUS, TRAVEL_TRIP, HOUSEHOLD_BUDGET, CONFERENCE, GENERAL_CUSTOM]
+              example: "CAREER_BUSINESS"
             event_date:
               type: string
               format: date
@@ -115,6 +137,7 @@ def create_event():
     data = request.get_json(silent=True) or request.form.to_dict()
     title = data.get("title")
     description = data.get("description", "")
+    event_type = data.get("event_type", "CAREER_BUSINESS")
     event_date = data.get("event_date")
     currency = data.get("currency", "INR")
     budget_limit = data.get("budget_limit")
@@ -124,6 +147,7 @@ def create_event():
             user_id=current_user.id,
             title=title,
             description=description,
+            event_type=event_type,
             event_date=event_date,
             currency=currency,
             budget_limit=budget_limit
@@ -418,6 +442,105 @@ def delete_category(category_id: int):
     try:
         EventService.delete_category(category_id, current_user.id, is_admin=current_user.is_admin)
         return jsonify({"status": "success", "message": "Category deleted."}), 200
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@api_bp.route("/events/<int:event_id>/categories/apply-template", methods=["POST"])
+@login_required
+@log_execution
+def apply_event_template(event_id: int):
+    """
+    Apply Category Template to Event
+    ---
+    tags:
+      - Categories
+    summary: Applies or appends a category template (e.g. Career & Business, Wedding, Pooja) to an existing event
+    parameters:
+      - name: event_id
+        in: path
+        type: integer
+        required: true
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - template_id
+          properties:
+            template_id:
+              type: string
+              example: "CAREER_BUSINESS"
+            overwrite:
+              type: boolean
+              example: false
+            auto_budget:
+              type: boolean
+              example: true
+    responses:
+      200:
+        description: Categories successfully applied
+      400:
+        description: Validation error
+    """
+    data = request.get_json(silent=True) or request.form.to_dict()
+    template_id = data.get("template_id", "CAREER_BUSINESS")
+    overwrite = bool(data.get("overwrite", False))
+    auto_budget = bool(data.get("auto_budget", True))
+
+    try:
+        categories = EventService.apply_template_to_event(
+            event_id=event_id,
+            user_id=current_user.id,
+            template_id=template_id,
+            overwrite=overwrite,
+            auto_budget=auto_budget,
+            is_admin=current_user.is_admin
+        )
+        return jsonify({
+            "status": "success",
+            "message": f"Template '{template_id}' applied successfully.",
+            "count": len(categories),
+            "categories": categories
+        }), 200
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@api_bp.route("/events/<int:event_id>/categories/auto-budget", methods=["POST"])
+@login_required
+@log_execution
+def auto_budget_categories(event_id: int):
+    """
+    Auto-Allocate Category Budgets
+    ---
+    tags:
+      - Categories
+    summary: Distributes the event's total budget limit among its expense categories
+    parameters:
+      - name: event_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Category budgets successfully updated
+      400:
+        description: Validation error
+    """
+    try:
+        categories = EventService.auto_allocate_category_budgets(
+            event_id=event_id,
+            user_id=current_user.id,
+            is_admin=current_user.is_admin
+        )
+        return jsonify({
+            "status": "success",
+            "message": "Category budgets auto-allocated successfully.",
+            "count": len(categories),
+            "categories": categories
+        }), 200
     except ValueError as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 

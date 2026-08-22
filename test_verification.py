@@ -57,17 +57,69 @@ def run_tests():
         assert merged_user.has_google_drive_linked() is True, "Drive tokens must be recognized"
         print(f"[TEST 3/8] Account Merging (Google + Local): SUCCESS -> Linked Google ID for User {merged_user.email}")
 
-        # 4. Verify Event & Default Category Creation
+        # 4. Verify Event & Default Category Creation (Wedding & Career/Business)
         event = EventService.create_event(
             user_id=normal_user.id,
             title="Arjun & Sneha Wedding",
             description="Wedding celebrations & rituals",
+            event_type="WEDDING",
             currency="INR",
             budget_limit=500000.0
         )
         assert event.id is not None
         assert event.categories.count() > 0, "Default categories should be seeded automatically"
-        print(f"[TEST 4/8] Event & Category Creation: SUCCESS -> Created Event '{event.title}' with {event.categories.count()} categories")
+        print(f"[TEST 4/8] Wedding Event & Category Creation: SUCCESS -> Created Event '{event.title}' with {event.categories.count()} categories")
+
+        # 4b. Verify Career, Freelance & Business Event Creation with Carrier Payments & Proportional Budgets
+        career_event = EventService.create_event(
+            user_id=normal_user.id,
+            title="Q4 Freelance & Carrier Logistics",
+            description="Client retainers, shipping & software tools",
+            event_type="CAREER_BUSINESS",
+            currency="INR",
+            budget_limit=200000.0
+        )
+        assert career_event.id is not None
+        assert career_event.event_type == "CAREER_BUSINESS"
+        
+        carrier_cat = career_event.categories.filter_by(name="Carrier, Freight & Shipping Payments").first()
+        contractor_cat = career_event.categories.filter_by(name="Contractor & Freelancer Wages").first()
+        client_inc_cat = career_event.categories.filter_by(name="Client Payments & Invoices").first()
+
+        assert carrier_cat is not None, "Carrier category must be created"
+        assert contractor_cat is not None, "Contractor category must be created"
+        assert client_inc_cat is not None, "Client income category must be created"
+        
+        # Verify 10% carrier budget = 20,000 and 25% contractor budget = 50,000
+        assert carrier_cat.budget == 20000.0, f"Expected 20,000 carrier budget, got {carrier_cat.budget}"
+        assert contractor_cat.budget == 50000.0, f"Expected 50,000 contractor budget, got {contractor_cat.budget}"
+        print(f"[TEST 4/8 (b)] Career & Business Event with Carrier Budgets: SUCCESS -> Carrier Budget: INR {carrier_cat.budget}, Contractor Budget: INR {contractor_cat.budget}")
+
+        # 4c. Verify Carrier Payment Mode Transaction
+        txn_carrier = EventService.create_transaction(
+            event_id=career_event.id,
+            user_id=normal_user.id,
+            type="EXPENSE",
+            amount=6500.0,
+            party_name="BlueDart Freight Logistics",
+            category_id=carrier_cat.id,
+            payment_mode="CARRIER_PAY",
+            reference_no="BLUEDART/987123654",
+            description="Express package shipping for client hardware"
+        )
+        assert txn_carrier.id is not None and txn_carrier.payment_mode == "CARRIER_PAY"
+        print(f"[TEST 4/8 (c)] Carrier Payment Mode Transaction: SUCCESS -> INR {txn_carrier.amount} to '{txn_carrier.party_name}' via {txn_carrier.payment_mode}")
+
+        # 4d. Verify Template Application to Existing Event
+        applied_cats = EventService.apply_template_to_event(
+            event_id=event.id,
+            user_id=normal_user.id,
+            template_id="TRAVEL_TRIP",
+            overwrite=False,
+            auto_budget=True
+        )
+        assert len(applied_cats) > 0
+        print(f"[TEST 4/8 (d)] Apply Template to Existing Event: SUCCESS -> Applied TRAVEL_TRIP template ({len(applied_cats)} total categories)")
 
         # 5. Verify Transaction Management (Expenses & Incoming Gifts)
         catering_cat = event.categories.filter_by(name="Catering & Food").first()
@@ -126,9 +178,9 @@ def run_tests():
         restore_result = BackupService.restore_global_database(admin_user.id, backup_obj, ip_address="127.0.0.1")
         assert restore_result["status"] == "success"
         assert User.query.count() == 2
-        assert Event.query.count() == 1
-        assert Transaction.query.count() == 2
-        print(f"[TEST 7/8 (b)] Admin Global DB Restore with Transaction Safety: SUCCESS -> Restored {User.query.count()} users & {Transaction.query.count()} transactions")
+        assert Event.query.count() == 2
+        assert Transaction.query.count() == 3
+        print(f"[TEST 7/8 (b)] Admin Global DB Restore with Transaction Safety: SUCCESS -> Restored {User.query.count()} users, {Event.query.count()} events & {Transaction.query.count()} transactions")
 
         # 8. Test HTTP Endpoints via Flask Test Client
         client = app.test_client()
@@ -148,6 +200,39 @@ def run_tests():
         # Login as Admin via /auth/local/login
         res_login_post = client.post("/auth/local/login", data={"email": "admin@eventtracker.com", "password": "adminpassword123"})
         assert res_login_post.status_code in [200, 302]
+
+        # Test Templates API Endpoint
+        res_tpl = client.get("/api/events/templates")
+        assert res_tpl.status_code == 200
+        tpl_data = res_tpl.get_json()
+        assert tpl_data["status"] == "success" and "templates" in tpl_data
+        assert "CAREER_BUSINESS" in tpl_data["templates"]
+        assert "WEDDING" in tpl_data["templates"]
+
+        # Test creating event via API with CAREER_BUSINESS template
+        res_create_ev = client.post("/api/events", json={
+            "title": "Corporate Annual Offsite",
+            "event_type": "CAREER_BUSINESS",
+            "budget_limit": 150000.0,
+            "currency": "INR"
+        })
+        assert res_create_ev.status_code == 201
+        new_ev = res_create_ev.get_json()["event"]
+        ev_id = new_ev["id"]
+
+        # Test Apply Template endpoint
+        res_apply_tpl = client.post(f"/api/events/{ev_id}/categories/apply-template", json={
+            "template_id": "CONFERENCE",
+            "overwrite": False,
+            "auto_budget": True
+        })
+        assert res_apply_tpl.status_code == 200
+        assert res_apply_tpl.get_json()["status"] == "success"
+
+        # Test Auto-Budget endpoint
+        res_auto_bgt = client.post(f"/api/events/{ev_id}/categories/auto-budget")
+        assert res_auto_bgt.status_code == 200
+        assert res_auto_bgt.get_json()["status"] == "success"
 
         # Admin stats endpoint
         res_admin_stats = client.get("/api/admin/stats")
@@ -187,7 +272,7 @@ def run_tests():
         assert res_del_user.status_code == 200
         assert User.query.filter_by(email="guest@eventtracker.com").first() is None
 
-        print(f"[TEST 8/8] Flask Test Client & Admin API Endpoints: SUCCESS -> HTTP 200 on /login, /register, /apidocs/, /api/admin/stats, /api/admin/users, /api/admin/events, /api/admin/users/<id>/purge, /api/admin/users/<id>")
+        print(f"[TEST 8/8] Flask Test Client & Admin/Template Endpoints: SUCCESS -> HTTP 200 on /login, /register, /apidocs/, /api/events/templates, /api/events, /api/events/<id>/categories/apply-template, /api/events/<id>/categories/auto-budget, /api/admin/stats, /api/admin/users, /api/admin/events, /api/admin/users/<id>/purge, /api/admin/users/<id>")
 
     print("=================================================================")
     print("ALL 8 VERIFICATION SUITES PASSED FLAWLESSLY!")

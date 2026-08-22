@@ -5,26 +5,163 @@ from models import Event, Category, Transaction, User
 from services.drive_service import DriveService
 from logger import app_logger, log_execution, log_db_transaction
 
-DEFAULT_CATEGORIES = [
-    {"name": "Gifts & Shagun Received", "type": "INCOME", "color": "#10b981", "icon": "fa-gift"},
-    {"name": "Catering & Food", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-utensils"},
-    {"name": "Decorations & Stage", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-holly-berry"},
-    {"name": "Venue & Accommodation", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-hotel"},
-    {"name": "Photography & Video", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-camera"},
-    {"name": "Entertainment & DJ", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-music"},
-    {"name": "Clothing & Jewelry", "type": "EXPENSE", "color": "#14b8a6", "icon": "fa-gem"},
-    {"name": "Travel & Logistics", "type": "EXPENSE", "color": "#f97316", "icon": "fa-car"},
-    {"name": "Miscellaneous Expenses", "type": "EXPENSE", "color": "#64748b", "icon": "fa-receipt"}
-]
+EVENT_TEMPLATES = {
+    "CAREER_BUSINESS": {
+        "id": "CAREER_BUSINESS",
+        "name": "Career, Freelance & Business Budgets",
+        "icon": "fa-briefcase",
+        "badge_color": "#6366f1",
+        "description": "Track client invoices, contractor payouts, carrier logistics, software SaaS, marketing, and office budgets.",
+        "categories": [
+            {"name": "Client Payments & Invoices", "type": "INCOME", "color": "#10b981", "icon": "fa-briefcase"},
+            {"name": "Salary & Stipend Inflow", "type": "INCOME", "color": "#059669", "icon": "fa-money-bill-wave"},
+            {"name": "Freelance & Consulting Projects", "type": "INCOME", "color": "#14b8a6", "icon": "fa-laptop-code"},
+            {"name": "Contractor & Freelancer Wages", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-user-tie", "default_budget_pct": 25},
+            {"name": "Carrier, Freight & Shipping Payments", "type": "EXPENSE", "color": "#f97316", "icon": "fa-truck-fast", "default_budget_pct": 10},
+            {"name": "Software, SaaS & Cloud Tools", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-cloud", "default_budget_pct": 10},
+            {"name": "Marketing, Ads & Lead Gen", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-bullhorn", "default_budget_pct": 15},
+            {"name": "Hardware & Office Equipment", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-desktop", "default_budget_pct": 10},
+            {"name": "Office Rent & Coworking Space", "type": "EXPENSE", "color": "#64748b", "icon": "fa-building", "default_budget_pct": 15},
+            {"name": "Career Courses & Certifications", "type": "EXPENSE", "color": "#06b6d4", "icon": "fa-graduation-cap", "default_budget_pct": 5},
+            {"name": "Business Travel & Daily Commute", "type": "EXPENSE", "color": "#eab308", "icon": "fa-plane-departure", "default_budget_pct": 5},
+            {"name": "Client Dinners & Networking", "type": "EXPENSE", "color": "#d97706", "icon": "fa-mug-hot", "default_budget_pct": 5}
+        ]
+    },
+    "WEDDING": {
+        "id": "WEDDING",
+        "name": "Wedding & Marriage Celebration",
+        "icon": "fa-ring",
+        "badge_color": "#ec4899",
+        "description": "Complete expense and shagun tracking for wedding functions, catering, venue, and gifts.",
+        "categories": [
+            {"name": "Gifts & Shagun Received", "type": "INCOME", "color": "#10b981", "icon": "fa-gift"},
+            {"name": "Catering & Food", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-utensils", "default_budget_pct": 30},
+            {"name": "Venue & Accommodation", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-hotel", "default_budget_pct": 25},
+            {"name": "Decorations & Stage", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-holly-berry", "default_budget_pct": 15},
+            {"name": "Photography & Video", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-camera", "default_budget_pct": 10},
+            {"name": "Clothing & Jewelry", "type": "EXPENSE", "color": "#14b8a6", "icon": "fa-gem", "default_budget_pct": 10},
+            {"name": "Entertainment & DJ", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-music", "default_budget_pct": 5},
+            {"name": "Travel & Guest Logistics", "type": "EXPENSE", "color": "#f97316", "icon": "fa-car", "default_budget_pct": 5},
+            {"name": "Invitations & Printing", "type": "EXPENSE", "color": "#06b6d4", "icon": "fa-envelope-open-text"},
+            {"name": "Miscellaneous Expenses", "type": "EXPENSE", "color": "#64748b", "icon": "fa-receipt"}
+        ]
+    },
+    "BIRTHDAY": {
+        "id": "BIRTHDAY",
+        "name": "Birthday & Anniversary Party",
+        "icon": "fa-cake-candles",
+        "badge_color": "#f59e0b",
+        "description": "Track party budget, cake, catering, venue decor, games, and return gifts.",
+        "categories": [
+            {"name": "Gifts & Cash Envelopes", "type": "INCOME", "color": "#10b981", "icon": "fa-gift"},
+            {"name": "Cake & Bakery", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-cake-candles", "default_budget_pct": 15},
+            {"name": "Food & Catering", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-utensils", "default_budget_pct": 35},
+            {"name": "Venue & Balloon Decor", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-champagne-glasses", "default_budget_pct": 20},
+            {"name": "DJ & Sound System", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-music", "default_budget_pct": 10},
+            {"name": "Return Gifts & Favors", "type": "EXPENSE", "color": "#14b8a6", "icon": "fa-box-open", "default_budget_pct": 10},
+            {"name": "Photography & Video", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-camera", "default_budget_pct": 10}
+        ]
+    },
+    "POOJA_RELIGIOUS": {
+        "id": "POOJA_RELIGIOUS",
+        "name": "Pooja, Religious Ceremony & Festival",
+        "icon": "fa-om",
+        "badge_color": "#eab308",
+        "description": "Manage dakshina, pooja samagri, prasad/bhandara, tent sound, and chanda donations.",
+        "categories": [
+            {"name": "Chanda & Donations Received", "type": "INCOME", "color": "#10b981", "icon": "fa-hand-holding-dollar"},
+            {"name": "Priest / Pandit Dakshina", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-hands-praying", "default_budget_pct": 20},
+            {"name": "Pooja Samagri & Havanam", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-fire-flame-curved", "default_budget_pct": 20},
+            {"name": "Prasad, Bhog & Bhandara", "type": "EXPENSE", "color": "#10b981", "icon": "fa-bowl-food", "default_budget_pct": 25},
+            {"name": "Flowers, Garlands & Rangoli", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-spa", "default_budget_pct": 15},
+            {"name": "Tent, Sound & Lighting", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-sun", "default_budget_pct": 15},
+            {"name": "Traditional Clothes & Offerings", "type": "EXPENSE", "color": "#14b8a6", "icon": "fa-shirt", "default_budget_pct": 5}
+        ]
+    },
+    "TRAVEL_TRIP": {
+        "id": "TRAVEL_TRIP",
+        "name": "Travel, Vacation & Road Trip",
+        "icon": "fa-plane-departure",
+        "badge_color": "#0ea5e9",
+        "description": "Track group pool contributions, flights/trains, hotels, local carrier/cabs, dining, and sightseeing.",
+        "categories": [
+            {"name": "Trip Pool & Contributions", "type": "INCOME", "color": "#10b981", "icon": "fa-users-line"},
+            {"name": "Flights, Trains & Long Carrier", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-plane-departure", "default_budget_pct": 35},
+            {"name": "Hotels & Homestays", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-hotel", "default_budget_pct": 30},
+            {"name": "Dining, Street Food & Drinks", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-utensils", "default_budget_pct": 15},
+            {"name": "Local Cabs, Fuel & Carrier Logistics", "type": "EXPENSE", "color": "#f97316", "icon": "fa-taxi", "default_budget_pct": 10},
+            {"name": "Sightseeing & Activity Tickets", "type": "EXPENSE", "color": "#14b8a6", "icon": "fa-ticket", "default_budget_pct": 5},
+            {"name": "Shopping & Souvenirs", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-bag-shopping", "default_budget_pct": 5}
+        ]
+    },
+    "HOUSEHOLD_BUDGET": {
+        "id": "HOUSEHOLD_BUDGET",
+        "name": "Household & Monthly Living Budget",
+        "icon": "fa-house",
+        "badge_color": "#10b981",
+        "description": "Track monthly family income, rent, groceries, utility bills, tuition, carrier/commute, and emergency savings.",
+        "categories": [
+            {"name": "Primary Salary & Income", "type": "INCOME", "color": "#10b981", "icon": "fa-money-bill-wave"},
+            {"name": "Secondary Income & Returns", "type": "INCOME", "color": "#14b8a6", "icon": "fa-coins"},
+            {"name": "House Rent / Mortgage", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-house", "default_budget_pct": 30},
+            {"name": "Groceries & Household Supplies", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-basket-shopping", "default_budget_pct": 20},
+            {"name": "Electricity, Gas & Utilities", "type": "EXPENSE", "color": "#eab308", "icon": "fa-bolt", "default_budget_pct": 10},
+            {"name": "Vehicle Fuel, Commute & Carrier", "type": "EXPENSE", "color": "#f97316", "icon": "fa-gas-pump", "default_budget_pct": 10},
+            {"name": "Healthcare & Insurance", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-heart-pulse", "default_budget_pct": 10},
+            {"name": "Education & Child Tuition", "type": "EXPENSE", "color": "#06b6d4", "icon": "fa-graduation-cap", "default_budget_pct": 10},
+            {"name": "Dining Out & Entertainment", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-film", "default_budget_pct": 5},
+            {"name": "Emergency Fund & Savings", "type": "EXPENSE", "color": "#10b981", "icon": "fa-piggy-bank", "default_budget_pct": 5}
+        ]
+    },
+    "CONFERENCE": {
+        "id": "CONFERENCE",
+        "name": "Conference, Seminar & Corporate Event",
+        "icon": "fa-people-group",
+        "badge_color": "#a855f7",
+        "description": "Track delegate registration fees, sponsorships, venue AV, speaker honorariums, and freight logistics.",
+        "categories": [
+            {"name": "Ticket Sales & Registrations", "type": "INCOME", "color": "#10b981", "icon": "fa-ticket"},
+            {"name": "Corporate Sponsorships", "type": "INCOME", "color": "#0d9488", "icon": "fa-handshake"},
+            {"name": "Venue & Audiovisual Stage", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-building", "default_budget_pct": 30},
+            {"name": "Speaker Fees & Honorarium", "type": "EXPENSE", "color": "#8b5cf6", "icon": "fa-microphone", "default_budget_pct": 20},
+            {"name": "Delegate Catering & High Tea", "type": "EXPENSE", "color": "#f59e0b", "icon": "fa-mug-hot", "default_budget_pct": 20},
+            {"name": "Freight, Courier & Carrier Logistics", "type": "EXPENSE", "color": "#f97316", "icon": "fa-truck", "default_budget_pct": 10},
+            {"name": "Badges, Kit Bags & Banners", "type": "EXPENSE", "color": "#ec4899", "icon": "fa-id-badge", "default_budget_pct": 10},
+            {"name": "Marketing & Event PR", "type": "EXPENSE", "color": "#6366f1", "icon": "fa-bullhorn", "default_budget_pct": 10}
+        ]
+    },
+    "GENERAL_CUSTOM": {
+        "id": "GENERAL_CUSTOM",
+        "name": "General / Custom Event",
+        "icon": "fa-tag",
+        "badge_color": "#64748b",
+        "description": "Standard income and expense categories for any general occasion.",
+        "categories": [
+            {"name": "Income / Funds Received", "type": "INCOME", "color": "#10b981", "icon": "fa-hand-holding-dollar"},
+            {"name": "Main Expenses", "type": "EXPENSE", "color": "#3b82f6", "icon": "fa-receipt", "default_budget_pct": 50},
+            {"name": "Carrier & Logistics", "type": "EXPENSE", "color": "#f97316", "icon": "fa-truck-fast", "default_budget_pct": 20},
+            {"name": "Miscellaneous Expenses", "type": "EXPENSE", "color": "#64748b", "icon": "fa-ellipsis", "default_budget_pct": 30}
+        ]
+    }
+}
+
+# Backward compatibility alias
+DEFAULT_CATEGORIES = EVENT_TEMPLATES["WEDDING"]["categories"]
 
 class EventService:
     """Business logic for Events, Categories, Transactions, and Financial Analytics."""
 
     @staticmethod
+    def get_event_templates() -> dict:
+        """Returns all configured event templates and their category presets."""
+        return EVENT_TEMPLATES
+
+    @staticmethod
     @log_execution
     def create_event(user_id: int, title: str, description: str = "", event_date = None, 
-                     currency: str = "INR", budget_limit: float = None, auto_seed_categories: bool = True) -> Event:
-        """Creates a new event and optionally seeds default event categories."""
+                     currency: str = "INR", budget_limit: float = None, 
+                     event_type: str = "WEDDING", auto_seed_categories: bool = True) -> Event:
+        """Creates a new event with designated template and smart proportional category budgets."""
         if not title or not title.strip():
             raise ValueError("Event title is required.")
 
@@ -37,32 +174,42 @@ class EventService:
         elif not parsed_date:
             parsed_date = datetime.date.today()
 
+        clean_budget_limit = float(budget_limit) if budget_limit is not None and str(budget_limit).strip() != "" else None
+        clean_event_type = event_type.upper() if event_type and event_type.upper() in EVENT_TEMPLATES else "WEDDING"
+
         event = Event(
             user_id=user_id,
             title=title.strip(),
             description=description.strip() if description else None,
+            event_type=clean_event_type,
             event_date=parsed_date,
             currency=currency.upper() if currency else "INR",
-            budget_limit=float(budget_limit) if budget_limit is not None and str(budget_limit).strip() != "" else None
+            budget_limit=clean_budget_limit
         )
 
         db.session.add(event)
         db.session.flush()
 
         if auto_seed_categories:
-            for cat_def in DEFAULT_CATEGORIES:
+            template = EVENT_TEMPLATES.get(clean_event_type, EVENT_TEMPLATES["WEDDING"])
+            for cat_def in template["categories"]:
+                cat_budget = None
+                if clean_budget_limit and "default_budget_pct" in cat_def:
+                    cat_budget = round((clean_budget_limit * cat_def["default_budget_pct"]) / 100.0, 2)
+
                 cat = Category(
                     event_id=event.id,
                     name=cat_def["name"],
                     type=cat_def["type"],
                     color=cat_def["color"],
-                    icon=cat_def["icon"]
+                    icon=cat_def["icon"],
+                    budget=cat_budget
                 )
                 db.session.add(cat)
 
         db.session.commit()
-        log_db_transaction("CREATE", "Event", event.id, {"title": event.title, "user_id": user_id})
-        app_logger.info(f"[EVENT] Created Event ID: {event.id} ('{event.title}') for User ID: {user_id}")
+        log_db_transaction("CREATE", "Event", event.id, {"title": event.title, "user_id": user_id, "event_type": clean_event_type})
+        app_logger.info(f"[EVENT] Created Event ID: {event.id} ('{event.title}', Type: {clean_event_type}) for User ID: {user_id}")
         return event
 
     @staticmethod
@@ -112,6 +259,10 @@ class EventService:
             event.description = data["description"].strip() if data["description"] else None
         if "currency" in data and data["currency"]:
             event.currency = data["currency"].upper()
+        if "event_type" in data and data["event_type"]:
+            clean_tpl = data["event_type"].upper()
+            if clean_tpl in EVENT_TEMPLATES:
+                event.event_type = clean_tpl
         if "budget_limit" in data:
             val = data["budget_limit"]
             event.budget_limit = float(val) if val is not None and str(val).strip() != "" else None
@@ -235,6 +386,107 @@ class EventService:
         db.session.commit()
         log_db_transaction("DELETE", "Category", category_id)
         return True
+
+    @staticmethod
+    @log_execution
+    def apply_template_to_event(event_id: int, user_id: int, template_id: str,
+                                overwrite: bool = False, auto_budget: bool = True, is_admin: bool = False) -> list:
+        """
+        Applies a category template to an existing event.
+        If overwrite is True, removes empty existing categories.
+        If auto_budget is True, allocates category budgets based on event budget limit.
+        """
+        event = EventService.get_event(event_id, user_id, is_admin)
+        clean_tpl_id = template_id.upper() if template_id and template_id.upper() in EVENT_TEMPLATES else "CAREER_BUSINESS"
+        template = EVENT_TEMPLATES.get(clean_tpl_id)
+
+        if not template:
+            raise ValueError(f"Template '{template_id}' not found.")
+
+        # Update event type
+        event.event_type = clean_tpl_id
+
+        if overwrite:
+            # Delete categories that don't have transactions
+            existing_cats = Category.query.filter_by(event_id=event.id).all()
+            for c in existing_cats:
+                if c.transactions.count() == 0:
+                    db.session.delete(c)
+                else:
+                    # Clear association or retain
+                    pass
+            db.session.flush()
+
+        existing_names = {c.name.lower(): c for c in Category.query.filter_by(event_id=event.id).all()}
+        new_cats = []
+
+        for cat_def in template["categories"]:
+            cat_budget = None
+            if auto_budget and event.budget_limit and "default_budget_pct" in cat_def:
+                cat_budget = round((event.budget_limit * cat_def["default_budget_pct"]) / 100.0, 2)
+
+            if cat_def["name"].lower() in existing_names:
+                # Update existing category icon/color/budget
+                existing_cat = existing_names[cat_def["name"].lower()]
+                existing_cat.color = cat_def["color"]
+                existing_cat.icon = cat_def["icon"]
+                existing_cat.type = cat_def["type"]
+                if auto_budget and cat_budget:
+                    existing_cat.budget = cat_budget
+            else:
+                # Create category
+                cat = Category(
+                    event_id=event.id,
+                    name=cat_def["name"],
+                    type=cat_def["type"],
+                    color=cat_def["color"],
+                    icon=cat_def["icon"],
+                    budget=cat_budget
+                )
+                db.session.add(cat)
+                new_cats.append(cat)
+
+        db.session.commit()
+        log_db_transaction("APPLY_TEMPLATE", "Event", event.id, {"template_id": clean_tpl_id, "overwrite": overwrite})
+        app_logger.info(f"[EVENT] Applied template '{clean_tpl_id}' to Event ID: {event.id}")
+        return EventService.get_event_categories(event.id, user_id, include_totals=True, is_admin=is_admin)
+
+    @staticmethod
+    @log_execution
+    def auto_allocate_category_budgets(event_id: int, user_id: int, is_admin: bool = False) -> list:
+        """
+        Calculates and distributes the total event budget_limit among categories.
+        Uses template proportions if available, or even split among expense categories.
+        """
+        event = EventService.get_event(event_id, user_id, is_admin)
+        if not event.budget_limit or event.budget_limit <= 0:
+            raise ValueError("Event has no budget limit defined. Please set a budget limit on the event first.")
+
+        categories = Category.query.filter_by(event_id=event.id).all()
+        expense_cats = [c for c in categories if c.type in ["EXPENSE", "BOTH"]]
+        if not expense_cats:
+            raise ValueError("No expense categories found in event to allocate budget to.")
+
+        # Check if template default_budget_pct exists for matching names
+        template = EVENT_TEMPLATES.get(event.event_type, {})
+        tpl_cat_map = {c["name"].lower(): c.get("default_budget_pct") for c in template.get("categories", [])}
+
+        matched_pct_sum = sum(tpl_cat_map.get(c.name.lower(), 0) or 0 for c in expense_cats)
+        unmatched_cats = [c for c in expense_cats if not tpl_cat_map.get(c.name.lower())]
+
+        remaining_pct = max(0, 100 - matched_pct_sum)
+        unmatched_pct_each = (remaining_pct / len(unmatched_cats)) if unmatched_cats else 0
+
+        for c in expense_cats:
+            pct = tpl_cat_map.get(c.name.lower())
+            if pct is None:
+                pct = unmatched_pct_each
+            c.budget = round((event.budget_limit * pct) / 100.0, 2)
+
+        db.session.commit()
+        log_db_transaction("AUTO_BUDGET", "Event", event.id, {"budget_limit": event.budget_limit})
+        app_logger.info(f"[EVENT] Auto-allocated category budgets for Event ID: {event.id} ({event.currency} {event.budget_limit})")
+        return EventService.get_event_categories(event.id, user_id, include_totals=True, is_admin=is_admin)
 
     # ------------------ TRANSACTION OPERATIONS ------------------
 

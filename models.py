@@ -92,6 +92,7 @@ class Event(db.Model):
     description = db.Column(db.Text, nullable=True)
     event_date = db.Column(db.Date, default=datetime.date.today, nullable=False)
     currency = db.Column(db.String(10), default="INR", nullable=False)
+    event_type = db.Column(db.String(50), default="WEDDING", nullable=True)  # WEDDING, CAREER_BUSINESS, BIRTHDAY, POOJA_RELIGIOUS, TRAVEL_TRIP, HOUSEHOLD_BUDGET, CONFERENCE, GENERAL_CUSTOM
     budget_limit = db.Column(db.Float, nullable=True)
     status = db.Column(db.String(50), default="active", nullable=False)  # active, completed, archived
     
@@ -109,6 +110,7 @@ class Event(db.Model):
             "user_id": self.user_id,
             "title": self.title,
             "description": self.description,
+            "event_type": self.event_type or "WEDDING",
             "event_date": self.event_date.isoformat() if self.event_date else None,
             "currency": self.currency,
             "budget_limit": self.budget_limit,
@@ -129,7 +131,7 @@ class Event(db.Model):
         return data
 
     def __repr__(self):
-        return f"<Event {self.id}: {self.title}>"
+        return f"<Event {self.id}: {self.title} ({self.event_type})>"
 
 
 class Category(db.Model):

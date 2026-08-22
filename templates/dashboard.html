@@ -354,16 +354,27 @@
 
     <!-- TAB 3: CATEGORIES & BUDGETS -->
     <section id="tab-categories" class="tab-content">
-        <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-                <h3 class="text-base sm:text-lg font-bold text-white font-outfit">Categories & Budgets</h3>
-                <p class="text-[11px] sm:text-xs text-slate-400">Custom categories & budget limits for current event</p>
+                <h3 class="text-base sm:text-lg font-bold text-white font-outfit flex items-center gap-2">
+                    <i class="fa-solid fa-tags text-amber-400"></i> Categories & Budgets
+                </h3>
+                <p class="text-[11px] sm:text-xs text-slate-400">Custom categories, career/event templates & smart budget limits</p>
             </div>
-            <button type="button" onclick="openCreateCategoryModal()" class="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-                <i class="fa-solid fa-folder-plus text-xs"></i>
-                <span class="hidden sm:inline">Create Custom Category</span>
-                <span class="sm:hidden">+ Category</span>
-            </button>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="openApplyTemplateModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 hover:text-white text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shrink-0" title="Load Career, Travel, Pooja, or Wedding Presets">
+                    <i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i>
+                    <span>Apply Preset Template</span>
+                </button>
+                <button type="button" onclick="triggerAutoAllocateBudgets()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 hover:text-white text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shrink-0" title="Auto-distribute Event Budget across Categories">
+                    <i class="fa-solid fa-calculator text-amber-400"></i>
+                    <span>Auto-Budget</span>
+                </button>
+                <button type="button" onclick="openCreateCategoryModal()" class="px-3 sm:px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                    <i class="fa-solid fa-folder-plus text-xs"></i>
+                    <span>+ Custom Category</span>
+                </button>
+            </div>
         </div>
 
         <div id="categories-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -667,20 +678,32 @@
 
 <!-- 1. CREATE EVENT MODAL -->
 <div id="modal-create-event" class="modal-overlay hidden">
-    <div class="modal-card max-w-lg">
+    <div class="modal-card max-w-xl">
         <div class="modal-header">
-            <h3 class="modal-title"><i class="fa-solid fa-calendar-plus text-indigo-400 mr-2"></i>Create New Event</h3>
+            <h3 class="modal-title"><i class="fa-solid fa-calendar-plus text-indigo-400 mr-2"></i>Create New Event & Budget</h3>
             <button type="button" class="modal-close" onclick="closeModal('modal-create-event')">&times;</button>
         </div>
         <form id="form-create-event" onsubmit="submitCreateEvent(event)" class="modal-body space-y-4">
             <div class="form-group">
-                <label class="form-label">Event Title *</label>
-                <input type="text" name="title" class="form-input" placeholder="e.g. Anand & Priya Wedding, Ganpati Pooja 2026" required>
+                <label class="form-label">Event Type / Preset Template *</label>
+                <select name="event_type" id="modal-create-event-type" class="form-select font-semibold text-indigo-300 bg-slate-800" onchange="onEventTypeTemplateChange(this.value)">
+                    <option value="CAREER_BUSINESS" selected>💼 Career, Freelance & Business Budgets</option>
+                    <option value="WEDDING">💍 Wedding & Reception Celebrations</option>
+                    <option value="BIRTHDAY">🎂 Birthday & Anniversary Party</option>
+                    <option value="POOJA_RELIGIOUS">🪔 Pooja, Religious Ceremony & Festivals</option>
+                    <option value="TRAVEL_TRIP">✈️ Travel, Vacation & Road Trip</option>
+                    <option value="HOUSEHOLD_BUDGET">🏠 Household & Monthly Living Budget</option>
+                    <option value="CONFERENCE">🎤 Conference, Seminar & Corporate Event</option>
+                    <option value="GENERAL_CUSTOM">🏷️ General / Custom Event</option>
+                </select>
+                <p class="text-[11px] text-slate-400 mt-1" id="template-desc-hint">Includes client retainers, contractor payouts, carrier/shipping fees, SaaS tools, and marketing.</p>
             </div>
+
             <div class="form-group">
-                <label class="form-label">Description (Optional)</label>
-                <textarea name="description" class="form-input" rows="2" placeholder="Brief notes about the gathering..."></textarea>
+                <label class="form-label">Event Title *</label>
+                <input type="text" name="title" id="modal-create-event-title" class="form-input" placeholder="e.g. Q4 Client Projects & Logistics, Anand & Priya Wedding" required>
             </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div class="form-group">
                     <label class="form-label">Event Date</label>
@@ -688,7 +711,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Currency</label>
-                    <select name="currency" class="form-select">
+                    <select name="currency" id="modal-create-currency" class="form-select">
                         <option value="INR">INR (₹)</option>
                         <option value="USD">USD ($)</option>
                         <option value="EUR">EUR (€)</option>
@@ -697,13 +720,38 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Budget Limit</label>
-                    <input type="number" step="0.01" name="budget_limit" class="form-input" placeholder="Optional">
+                    <label class="form-label">Total Budget Limit</label>
+                    <input type="number" step="0.01" name="budget_limit" id="modal-create-budget-limit" oninput="updateCreateEventCategoryPreview()" class="form-input font-bold" placeholder="e.g. 500000">
                 </div>
             </div>
-            <div class="modal-footer flex justify-end space-x-2 pt-4">
+
+            <!-- Auto-generated Categories Live Preview -->
+            <div class="p-3.5 rounded-xl border border-slate-700/80 bg-slate-900/60 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i> Auto-Seeded Categories Preview:
+                    </span>
+                    <span class="text-[11px] text-indigo-400 font-semibold" id="preview-cat-count">12 Categories</span>
+                </div>
+                <div id="create-event-categories-preview" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto py-1">
+                    <!-- Populated dynamically via JS -->
+                </div>
+                <div class="flex items-center gap-2 pt-1 border-t border-slate-800">
+                    <input type="checkbox" id="modal-auto-budget-seed" name="auto_seed_categories" value="true" checked class="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500">
+                    <label for="modal-auto-budget-seed" class="text-[11px] text-slate-300 cursor-pointer">
+                        Auto-calculate proportional category budgets from total limit
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Description (Optional)</label>
+                <textarea name="description" class="form-input" rows="2" placeholder="Brief notes about the project, event, or financial scope..."></textarea>
+            </div>
+
+            <div class="modal-footer flex justify-end space-x-2 pt-2">
                 <button type="button" class="btn-ghost" onclick="closeModal('modal-create-event')">Cancel</button>
-                <button type="submit" class="btn-primary"><i class="fa-solid fa-check mr-1"></i> Create Event</button>
+                <button type="submit" class="btn-primary"><i class="fa-solid fa-check mr-1"></i> Create Event & Categories</button>
             </div>
         </form>
     </div>
@@ -725,7 +773,7 @@
                 </label>
                 <label class="flex-1 text-center py-2.5 rounded-lg cursor-pointer font-medium text-xs transition" id="label-type-income">
                     <input type="radio" name="type" value="INCOME" class="sr-only" onchange="updateTxnTypeUI('INCOME')">
-                    <i class="fa-solid fa-hand-holding-dollar text-emerald-400 mr-1"></i> Gift / Shagun (Incoming)
+                    <i class="fa-solid fa-hand-holding-dollar text-emerald-400 mr-1"></i> Gift / Income (Incoming)
                 </label>
             </div>
 
@@ -735,8 +783,8 @@
                     <input type="number" step="0.01" min="0.01" name="amount" class="form-input text-lg font-bold" placeholder="0.00" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" id="label-party-name">Payee / Vendor Name *</label>
-                    <input type="text" name="party_name" class="form-input" placeholder="e.g. Royal Caterers / Uncle Ramesh" required>
+                    <label class="form-label" id="label-party-name">Payee / Vendor / Contributor Name *</label>
+                    <input type="text" name="party_name" class="form-input" placeholder="e.g. Fedex Courier, Royal Caterers, Client ABC" required>
                 </div>
             </div>
 
@@ -750,12 +798,14 @@
                 <div class="form-group">
                     <label class="form-label">Payment Mode</label>
                     <select name="payment_mode" class="form-select">
-                        <option value="CASH">Cash</option>
-                        <option value="UPI">UPI (Google Pay / PhonePe / Paytm)</option>
-                        <option value="BANK_TRANSFER">Bank Transfer / NEFT / IMPS</option>
-                        <option value="CARD">Debit / Credit Card</option>
-                        <option value="CHEQUE">Cheque</option>
-                        <option value="OTHER">Other</option>
+                        <option value="CASH">💵 Cash</option>
+                        <option value="UPI">📱 UPI (Google Pay / PhonePe / Paytm / BHIM)</option>
+                        <option value="BANK_TRANSFER">🏦 Bank Transfer (NEFT / IMPS / Wire)</option>
+                        <option value="CARD">💳 Debit / Credit Card</option>
+                        <option value="CARRIER_PAY">🚚 Carrier / Freight / Logistics Pay (COD)</option>
+                        <option value="NET_BANKING">🌐 Net Banking</option>
+                        <option value="CHEQUE">📝 Cheque / Demand Draft</option>
+                        <option value="OTHER">🔖 Other</option>
                     </select>
                 </div>
             </div>
@@ -766,14 +816,14 @@
                     <input type="date" name="transaction_date" class="form-input" id="modal-txn-date">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Reference No / UPI ID (Optional)</label>
-                    <input type="text" name="reference_no" class="form-input" placeholder="e.g. UPI Ref, Invoice #">
+                    <label class="form-label">Reference No / Tracking / UPI ID (Optional)</label>
+                    <input type="text" name="reference_no" class="form-input" placeholder="e.g. Tracking #, UPI Ref, Invoice #">
                 </div>
             </div>
 
             <div class="form-group">
                 <label class="form-label">Description / Note</label>
-                <textarea name="description" class="form-input" rows="2" placeholder="Itemized details, purpose of payment, or gift notes..."></textarea>
+                <textarea name="description" class="form-input" rows="2" placeholder="Itemized details, purpose of payment, carrier logistics notes, or gift remarks..."></textarea>
             </div>
 
             <div class="form-group">
@@ -801,7 +851,7 @@
         <form id="form-create-category" onsubmit="submitCreateCategory(event)" class="modal-body space-y-4">
             <div class="form-group">
                 <label class="form-label">Category Name *</label>
-                <input type="text" name="name" class="form-input" placeholder="e.g. Sound System & DJ, Bride Makeup" required>
+                <input type="text" name="name" class="form-input" placeholder="e.g. Carrier Logistics, Software Tools, DJ" required>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div class="form-group">
@@ -826,6 +876,11 @@
                     <label class="form-label">Icon</label>
                     <select name="icon" class="form-select">
                         <option value="fa-tag">🏷️ Tag</option>
+                        <option value="fa-briefcase">💼 Career / Business</option>
+                        <option value="fa-truck-fast">🚚 Carrier & Freight</option>
+                        <option value="fa-cloud">☁️ Software / Cloud</option>
+                        <option value="fa-desktop">🖥️ Hardware</option>
+                        <option value="fa-bullhorn">📢 Marketing</option>
                         <option value="fa-gift">🎁 Gift</option>
                         <option value="fa-utensils">🍽️ Catering</option>
                         <option value="fa-hotel">🏨 Venue</option>
@@ -834,6 +889,8 @@
                         <option value="fa-gem">💎 Jewelry</option>
                         <option value="fa-car">🚗 Travel</option>
                         <option value="fa-holly-berry">✨ Decoration</option>
+                        <option value="fa-house">🏠 House</option>
+                        <option value="fa-basket-shopping">🛒 Groceries</option>
                     </select>
                 </div>
             </div>
@@ -842,6 +899,56 @@
                 <button type="submit" class="btn-primary"><i class="fa-solid fa-check mr-1"></i> Save Category</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- 4. APPLY PRESET TEMPLATE MODAL -->
+<div id="modal-apply-template" class="modal-overlay hidden">
+    <div class="modal-card max-w-lg">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="fa-solid fa-wand-magic-sparkles text-indigo-400 mr-2"></i>Apply Preset Template</h3>
+            <button type="button" class="modal-close" onclick="closeModal('modal-apply-template')">&times;</button>
+        </div>
+        <div class="modal-body space-y-4">
+            <div class="form-group">
+                <label class="form-label">Select Event & Category Preset Template:</label>
+                <select id="apply-template-select" class="form-select font-semibold text-indigo-300 bg-slate-800" onchange="onApplyTemplateSelectChange(this.value)">
+                    <option value="CAREER_BUSINESS" selected>💼 Career, Freelance & Business Budgets</option>
+                    <option value="WEDDING">💍 Wedding & Reception Celebrations</option>
+                    <option value="BIRTHDAY">🎂 Birthday & Anniversary Party</option>
+                    <option value="POOJA_RELIGIOUS">🪔 Pooja, Religious Ceremony & Festivals</option>
+                    <option value="TRAVEL_TRIP">✈️ Travel, Vacation & Road Trip</option>
+                    <option value="HOUSEHOLD_BUDGET">🏠 Household & Monthly Living Budget</option>
+                    <option value="CONFERENCE">🎤 Conference, Seminar & Corporate Event</option>
+                    <option value="GENERAL_CUSTOM">🏷️ General / Custom Event</option>
+                </select>
+            </div>
+
+            <div class="p-3.5 rounded-xl border border-slate-700/80 bg-slate-900/60 space-y-2">
+                <span class="text-xs font-bold text-slate-200">Template Categories:</span>
+                <div id="apply-template-preview-badges" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto py-1">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <div class="space-y-2 pt-1">
+                <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input type="checkbox" id="apply-template-autobudget" checked class="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500">
+                    <span>Auto-calculate category budget limits from event's total budget limit</span>
+                </label>
+                <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input type="checkbox" id="apply-template-overwrite" class="rounded border-slate-700 text-rose-600 focus:ring-rose-500">
+                    <span class="text-slate-400">Replace empty categories (categories with transactions will be preserved)</span>
+                </label>
+            </div>
+
+            <div class="modal-footer flex justify-end space-x-2 pt-3">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-apply-template')">Cancel</button>
+                <button type="button" onclick="submitApplyTemplate()" id="btn-submit-apply-template" class="btn-primary">
+                    <i class="fa-solid fa-check mr-1"></i> Apply Preset to Event
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 

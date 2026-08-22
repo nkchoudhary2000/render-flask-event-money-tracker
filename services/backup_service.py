@@ -159,6 +159,7 @@ class BackupService:
                         "user_id": e.user_id,
                         "title": e.title,
                         "description": e.description,
+                        "event_type": e.event_type or "WEDDING",
                         "event_date": e.event_date.isoformat() if e.event_date else None,
                         "currency": e.currency,
                         "budget_limit": e.budget_limit,
@@ -356,8 +357,9 @@ class BackupService:
                 ev = Event(
                     id=e.get("id"),
                     user_id=e.get("user_id"),
-                    title=e.get("title"),
+                    title=e.get("title", "Untitled Event"),
                     description=e.get("description"),
+                    event_type=e.get("event_type", "WEDDING"),
                     currency=e.get("currency", "INR"),
                     budget_limit=e.get("budget_limit"),
                     status=e.get("status", "active")
