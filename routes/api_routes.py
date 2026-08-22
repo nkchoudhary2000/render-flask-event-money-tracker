@@ -657,8 +657,79 @@ def get_drive_status():
       200:
         description: Drive connection status
     """
-    status = DriveService.check_drive_status(current_user)
-    return jsonify({"status": "success", "drive": status}), 200
+@api_bp.route("/drive/folders", methods=["GET"])
+@login_required
+@log_execution
+def list_user_drive_folders():
+    """
+    List Google Drive Folders
+    ---
+    tags:
+      - Google Drive
+    summary: Fetches all available folders in the user's Google Drive for custom folder selection
+    responses:
+      200:
+        description: List of Drive folders
+      400:
+        description: Error querying Google Drive
+    """
+    try:
+        folders = DriveService.list_user_drive_folders(current_user)
+        return jsonify({
+            "status": "success",
+            "count": len(folders),
+            "folders": folders,
+            "current_folder_id": current_user.google_drive_folder_id,
+            "current_folder_name": current_user.google_drive_folder_name
+        }), 200
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@api_bp.route("/drive/select-folder", methods=["POST"])
+@login_required
+@log_execution
+def select_drive_folder():
+    """
+    Set Designated Google Drive Folder
+    ---
+    tags:
+      - Google Drive
+    summary: Sets an existing Google Drive folder as the designated destination for all backups and receipts
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - folder_id
+          properties:
+            folder_id:
+              type: string
+            folder_name:
+              type: string
+    responses:
+      200:
+        description: Designated folder saved
+      400:
+        description: Error setting folder
+    """
+    data = request.get_json(silent=True) or request.form.to_dict()
+    folder_id = data.get("folder_id")
+    folder_name = data.get("folder_name")
+    if not folder_id:
+        return jsonify({"status": "error", "message": "Folder ID is required."}), 400
+
+    try:
+        res = DriveService.set_user_designated_folder(current_user, folder_id=folder_id, folder_name=folder_name)
+        return jsonify({
+            "status": "success",
+            "message": f"Designated backup folder set to '{res['folder_name']}'.",
+            "folder": res
+        }), 200
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 
 @api_bp.route("/drive/folder", methods=["POST"])

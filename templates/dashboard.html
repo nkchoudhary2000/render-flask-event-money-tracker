@@ -406,24 +406,61 @@
                     </div>
                 </div>
 
-                <!-- Folder Settings -->
-                <div class="p-4 sm:p-5 rounded-2xl border border-slate-700 bg-slate-800/20">
-                    <h4 class="text-xs sm:text-sm font-bold text-slate-200 mb-1.5">Designated Google Drive Folder</h4>
-                    <p class="text-[11px] sm:text-xs text-slate-400 mb-3 sm:mb-4">Receipts uploaded to transactions and data backups will automatically be stored inside this folder.</p>
-                    
-                    <form id="drive-folder-form" onsubmit="submitDriveFolder(event)" class="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
-                        <input type="text" id="drive-folder-input" class="w-full bg-slate-800/80 border border-slate-700/80 text-white text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-indigo-500 flex-grow" value="{{ drive_status.folder_name or 'EventMoneyTracker_Receipts' }}" placeholder="Folder Name">
-                        <button type="submit" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap">
-                            <i class="fa-solid fa-floppy-disk"></i> Update Folder Name
+                <!-- Interactive Folder Selector & Creator -->
+                <div class="p-4 sm:p-5 rounded-2xl border border-slate-700 bg-slate-800/20 space-y-4">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                            <h4 class="text-xs sm:text-sm font-bold text-slate-200">Designated Google Drive Destination Folder</h4>
+                            <p class="text-[11px] sm:text-xs text-slate-400">All transaction receipts and JSON backups will be saved exclusively into this folder.</p>
+                        </div>
+                        <button type="button" onclick="loadUserDriveFolders(true)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5" title="Scan and reload folders from your Google Drive">
+                            <i class="fa-solid fa-arrows-rotate text-xs"></i> Scan Drive Folders
                         </button>
-                    </form>
+                    </div>
+
+                    <!-- Folder Selection Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 pt-2">
+                        <!-- Option A: Select Existing Drive Folder -->
+                        <div class="p-3.5 sm:p-4 rounded-xl border border-slate-700/80 bg-slate-900/50 space-y-2.5">
+                            <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-folder-tree text-amber-400"></i> Select Existing Drive Folder:
+                            </label>
+                            <select id="drive-folder-select" onchange="onSelectExistingDriveFolder(this.value)" class="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2.5 outline-none focus:border-indigo-500 cursor-pointer">
+                                <option value="">-- Loading your Google Drive Folders... --</option>
+                            </select>
+                            <p class="text-[10px] text-slate-500">Pick any folder from your Google Drive root.</p>
+                        </div>
+
+                        <!-- Option B: Create / Custom Folder Name -->
+                        <div class="p-3.5 sm:p-4 rounded-xl border border-slate-700/80 bg-slate-900/50 space-y-2.5">
+                            <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-folder-plus text-indigo-400"></i> Or Create New Folder by Name:
+                            </label>
+                            <form id="drive-folder-form" onsubmit="submitDriveFolder(event)" class="flex gap-2">
+                                <input type="text" id="drive-folder-input" class="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-indigo-500" value="{{ drive_status.folder_name or 'EventMoneyTracker_Receipts' }}" placeholder="e.g. Anand_Wedding_2026">
+                                <button type="submit" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1 shrink-0">
+                                    <i class="fa-solid fa-check"></i> Set
+                                </button>
+                            </form>
+                            <p class="text-[10px] text-slate-500">Creates or links folder by name.</p>
+                        </div>
+                    </div>
+
+                    <!-- Currently Active Folder Status Pill -->
+                    <div class="p-3 rounded-xl border border-indigo-500/30 bg-indigo-950/20 flex items-center justify-between text-xs">
+                        <div class="flex items-center space-x-2 text-indigo-200">
+                            <i class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
+                            <span>Active Destination: <strong id="active-drive-folder-name" class="text-white font-mono">{{ drive_status.folder_name or 'EventMoneyTracker_Receipts' }}</strong></span>
+                        </div>
+                        <span id="active-drive-folder-id" class="text-[10px] font-mono text-slate-400 truncate max-w-[180px]">{{ drive_status.folder_id or '' }}</span>
+                    </div>
                 </div>
 
                 <!-- Cloud Backup Action -->
                 <div class="p-4 sm:p-5 rounded-2xl border border-slate-700 bg-slate-800/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                     <div>
                         <h4 class="text-xs sm:text-sm font-bold text-slate-200">1-Click Cloud Data Backup</h4>
-                        <p class="text-[11px] sm:text-xs text-slate-400">Save a timestamped JSON copy of all events and transactions to Google Drive.</p>
+                        <p class="text-[11px] sm:text-xs text-slate-400">Save a timestamped JSON copy of all events and transactions directly into the selected Google Drive folder.</p>
                     </div>
                     <button type="button" onclick="triggerDriveBackup()" class="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
                         <i class="fa-solid fa-cloud-arrow-up"></i> Backup Now to Drive

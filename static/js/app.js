@@ -81,6 +81,8 @@ function switchTab(tabId) {
         }
     } else if (tabId === 'admin') {
         loadAdminStats();
+    } else if (tabId === 'drive') {
+        loadUserDriveFolders();
     }
 }
 
@@ -835,6 +837,83 @@ async function triggerDriveBackup() {
     }
 }
 
+// Load and populate user Google Drive folders
+async function loadUserDriveFolders(forceScan = false) {
+    const select = document.getElementById('drive-folder-select');
+    const activeNameEl = document.getElementById('active-drive-folder-name');
+    const activeIdEl = document.getElementById('active-drive-folder-id');
+
+    if (!select) return;
+    if (forceScan) {
+        select.innerHTML = '<option value="">-- Scanning Google Drive folders... --</option>';
+        showToast('Scanning your Google Drive for folders...', 'info');
+    }
+
+    try {
+        const res = await fetch('/api/drive/folders');
+        const data = res.ok ? await res.json() : { status: 'error' };
+
+        if (data.status === 'success') {
+            const folders = data.folders || [];
+            const currentFolderId = data.current_folder_id;
+            const currentFolderName = data.current_folder_name || 'EventMoneyTracker_Receipts';
+
+            if (activeNameEl) activeNameEl.textContent = currentFolderName;
+            if (activeIdEl) activeIdEl.textContent = currentFolderId ? `ID: ${currentFolderId}` : '(Auto)';
+
+            if (folders.length === 0) {
+                select.innerHTML = '<option value="">-- No custom folders found in Google Drive root --</option>';
+            } else {
+                select.innerHTML = '<option value="">-- Select a Google Drive Folder --</option>' + 
+                    folders.map(f => `
+                        <option value="${f.id}" ${f.id === currentFolderId ? 'selected' : ''}>
+                            📁 ${escapeHtml(f.name)} (${f.id.slice(0, 8)}...)
+                        </option>
+                    `).join('');
+            }
+
+            if (forceScan) {
+                showToast(`Found ${folders.length} folders in your Google Drive!`, 'success');
+            }
+        } else {
+            select.innerHTML = '<option value="">-- Connect Google Drive to browse folders --</option>';
+        }
+    } catch (err) {
+        console.error('Failed to load drive folders:', err);
+        select.innerHTML = '<option value="">-- Connect Google Drive to browse folders --</option>';
+    }
+}
+
+// User selects an existing folder from the dropdown
+async function onSelectExistingDriveFolder(folderId) {
+    if (!folderId) return;
+
+    const select = document.getElementById('drive-folder-select');
+    const selectedOption = select.options[select.selectedIndex];
+    const folderName = selectedOption ? selectedOption.text.replace(/^📁\s*/, '').replace(/\s*\([^)]*\)$/, '').trim() : '';
+
+    try {
+        const res = await fetch('/api/drive/select-folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folder_id: folderId, folder_name: folderName })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.status === 'success') {
+            showToast(`Destination folder set to "${data.folder.folder_name}"!`, 'success');
+            const activeNameEl = document.getElementById('active-drive-folder-name');
+            const activeIdEl = document.getElementById('active-drive-folder-id');
+            if (activeNameEl) activeNameEl.textContent = data.folder.folder_name;
+            if (activeIdEl) activeIdEl.textContent = `ID: ${data.folder.folder_id}`;
+        } else {
+            showToast(data.message || 'Failed to select folder', 'error');
+        }
+    } catch (err) {
+        showToast('Error setting designated folder', 'error');
+    }
+}
+
 async function submitDriveFolder(e) {
     e.preventDefault();
     const folderName = document.getElementById('drive-folder-input').value.trim();
@@ -849,7 +928,12 @@ async function submitDriveFolder(e) {
         const data = await res.json();
 
         if (res.ok && data.status === 'success') {
-            showToast('Google Drive folder updated successfully!', 'success');
+            showToast(`Designated folder updated to "${data.folder_name}"!`, 'success');
+            const activeNameEl = document.getElementById('active-drive-folder-name');
+            const activeIdEl = document.getElementById('active-drive-folder-id');
+            if (activeNameEl) activeNameEl.textContent = data.folder_name;
+            if (activeIdEl) activeIdEl.textContent = data.folder_id ? `ID: ${data.folder_id}` : '';
+            loadUserDriveFolders();
         } else {
             showToast(data.message || 'Failed to update folder', 'error');
         }

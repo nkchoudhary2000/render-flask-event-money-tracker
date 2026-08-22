@@ -113,6 +113,55 @@ class DriveService:
 
     @classmethod
     @log_execution
+    def list_user_drive_folders(cls, user: User) -> list:
+        """
+        Lists all available folders in the user's Google Drive so they can select a custom folder.
+        """
+        drive = cls.get_drive_client(user)
+        query = "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        try:
+            results = drive.files().list(
+                q=query,
+                spaces="drive",
+                fields="files(id, name, modifiedTime)",
+                orderBy="name asc",
+                pageSize=100
+            ).execute()
+            log_external_api("GoogleDrive", "files().list (Folders)", "GET", payload={"q": query}, response=results)
+            return results.get("files", [])
+        except Exception as e:
+            app_logger.error(f"[DRIVE] Error listing user Drive folders: {str(e)}")
+            raise ValueError(f"Could not load Google Drive folders: {str(e)}")
+
+    @classmethod
+    @log_execution
+    def set_user_designated_folder(cls, user: User, folder_id: str, folder_name: str = None) -> dict:
+        """
+        Sets an existing Google Drive folder as the designated destination for backups & receipts.
+        """
+        drive = cls.get_drive_client(user)
+        try:
+            res = drive.files().get(fileId=folder_id, fields="id, name, trashed, mimeType").execute()
+            if not res or res.get("trashed"):
+                raise ValueError("Selected folder is invalid or in trash.")
+            if res.get("mimeType") != "application/vnd.google-apps.folder":
+                raise ValueError("Selected item is not a Google Drive folder.")
+
+            actual_name = res.get("name", folder_name or "Custom Folder")
+            user.google_drive_folder_id = folder_id
+            user.google_drive_folder_name = actual_name
+            db.session.commit()
+            app_logger.info(f"[DRIVE] Designated Drive folder set to '{actual_name}' (ID: {folder_id}) for User ID: {user.id}")
+            return {
+                "folder_id": folder_id,
+                "folder_name": actual_name
+            }
+        except Exception as e:
+            app_logger.error(f"[DRIVE] Failed to set designated folder: {str(e)}")
+            raise ValueError(f"Failed to set designated Google Drive folder: {str(e)}")
+
+    @classmethod
+    @log_execution
     def upload_file(cls, user: User, file_stream, filename: str, mime_type: str, folder_id: str = None) -> dict:
         """
         Uploads an image, document or receipt directly to the user's designated Google Drive folder.
