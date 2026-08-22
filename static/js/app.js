@@ -159,11 +159,32 @@ const EVENT_TEMPLATES_CLIENT = {
 let categoryChartInstance = null;
 
 // ============================================================================
-// INITIALIZATION ON DOM READY
+// INITIALIZATION ON DOM READY & 0ms INSTANT REHYDRATION
 // ============================================================================
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Rehydrate initial state from server in 0ms
+    try {
+        const stateEl = document.getElementById('server-initial-state');
+        if (stateEl && stateEl.textContent) {
+            const initialData = JSON.parse(stateEl.textContent);
+            if (initialData.categories && initialData.categories.length > 0) {
+                AppState.categories = initialData.categories;
+                populateCategoryDropdowns(AppState.categories);
+            }
+            if (initialData.transactions && initialData.transactions.length > 0) {
+                AppState.transactions = initialData.transactions;
+                renderMainTransactionsTable(AppState.transactions);
+            }
+            if (initialData.currentEventId) {
+                AppState.currentEventId = parseInt(initialData.currentEventId);
+            }
+        }
+    } catch (err) {
+        console.warn('Initial state parsing error:', err);
+    }
+
     const selector = document.getElementById('event-selector');
-    if (selector && selector.value) {
+    if (selector && selector.value && !AppState.currentEventId) {
         AppState.currentEventId = parseInt(selector.value);
     }
 
@@ -176,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const initialTab = (window.location.hash.replace('#', '') || 'overview').toLowerCase();
     switchTab(initialTab);
 
-    // Initial Data Preload
+    // Initial Data Preload in background
     if (AppState.currentEventId) {
         loadEventFullData(AppState.currentEventId, true);
     }
@@ -626,7 +647,7 @@ async function submitAddTransaction(e) {
 
     const matchedCat = (AppState.categories || []).find(c => c.id === catIdVal);
 
-    // 1. 0ms Optimistic UI Update
+    // 1. 0ms Instant Optimistic UI Update
     const optimisticTxn = {
         id: 'temp_' + Date.now(),
         event_id: AppState.currentEventId,
@@ -654,9 +675,22 @@ async function submitAddTransaction(e) {
         renderCategoriesGrid(AppState.categories);
     }
 
+    // Optimistically update Overview Metrics
+    if (AppState.analytics && AppState.analytics.summary) {
+        const s = AppState.analytics.summary;
+        if (typeVal === 'EXPENSE') s.total_expense = (s.total_expense || 0) + amountVal;
+        else s.total_income = (s.total_income || 0) + amountVal;
+        s.net_balance = (s.total_income || 0) - (s.total_expense || 0);
+        if (s.budget_limit && s.budget_limit > 0) {
+            s.budget_utilization = Math.min(Math.round((s.total_expense / s.budget_limit) * 100), 100);
+            s.budget_remaining = Math.max(0, s.budget_limit - s.total_expense);
+        }
+        updateStatsUI(s);
+    }
+
     closeModal('modal-add-transaction');
     form.reset();
-    showToast('Entry saved instantly!', 'success');
+    showToast('Entry saved instantly in 0ms!', 'success');
 
     // 2. Non-blocking Background API Sync
     try {
@@ -666,12 +700,22 @@ async function submitAddTransaction(e) {
         });
         const data = await res.json();
         if (res.ok && data.status === 'success') {
-            // Replace optimistic txn with server generated one
             const idx = AppState.transactions.findIndex(t => t.id === optimisticTxn.id);
             if (idx !== -1) AppState.transactions[idx] = data.transaction;
             renderMainTransactionsTable(AppState.transactions);
-            // Refresh analytics silently in background
-            loadEventFullData(AppState.currentEventId, true);
+
+            // Lightweight analytics refresh in background
+            fetch(`/api/events/${AppState.currentEventId}/analytics`)
+                .then(r => r.ok ? r.json() : null)
+                .then(d => {
+                    if (d && d.status === 'success') {
+                        AppState.analytics = d.analytics;
+                        updateStatsUI(d.analytics.summary);
+                        updateCategoryChart(d.analytics.category_breakdown);
+                        updateLeaderboardsUI(d.analytics.top_contributors, d.analytics.top_payees);
+                        renderRecentTable(d.analytics.recent_transactions);
+                    }
+                }).catch(() => {});
         } else {
             showToast(data.message || 'Failed to sync entry to cloud', 'error');
         }
@@ -695,13 +739,30 @@ async function deleteTransaction(txnId) {
             else cat.total_received = Math.max(0, (cat.total_received || 0) - removedTxn.amount);
             renderCategoriesGrid(AppState.categories);
         }
+        if (AppState.analytics && AppState.analytics.summary) {
+            const s = AppState.analytics.summary;
+            if (removedTxn.type === 'EXPENSE') s.total_expense = Math.max(0, (s.total_expense || 0) - removedTxn.amount);
+            else s.total_income = Math.max(0, (s.total_income || 0) - removedTxn.amount);
+            s.net_balance = (s.total_income || 0) - (s.total_expense || 0);
+            updateStatsUI(s);
+        }
     }
-    showToast('Transaction deleted', 'info');
+    showToast('Transaction deleted in 0ms', 'info');
 
     // 2. Background API delete
     try {
         await fetch(`/api/transactions/${txnId}`, { method: 'DELETE' });
-        loadEventFullData(AppState.currentEventId, true);
+        fetch(`/api/events/${AppState.currentEventId}/analytics`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+                if (d && d.status === 'success') {
+                    AppState.analytics = d.analytics;
+                    updateStatsUI(d.analytics.summary);
+                    updateCategoryChart(d.analytics.category_breakdown);
+                    updateLeaderboardsUI(d.analytics.top_contributors, d.analytics.top_payees);
+                    renderRecentTable(d.analytics.recent_transactions);
+                }
+            }).catch(() => {});
     } catch (err) {
         console.error('Failed to delete transaction on server:', err);
     }
@@ -995,9 +1056,22 @@ async function submitCreateEvent(e) {
         if (res.ok && data.status === 'success') {
             showToast('Event and default categories created successfully!', 'success');
             closeModal('modal-create-event');
-            setTimeout(() => {
-                location.reload();
-            }, 600);
+            form.reset();
+
+            const ev = data.event;
+            const selector = document.getElementById('event-selector');
+            if (selector && ev) {
+                const opt = document.createElement('option');
+                opt.value = ev.id;
+                opt.textContent = `${ev.title} (${ev.currency} 0)`;
+                opt.selected = true;
+                selector.appendChild(opt);
+                selector.value = ev.id;
+                AppState.currentEventId = ev.id;
+                loadEventFullData(ev.id);
+            } else {
+                window.location.reload();
+            }
         } else {
             showToast(data.message || 'Failed to create event', 'error');
         }

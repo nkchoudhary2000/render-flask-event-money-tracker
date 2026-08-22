@@ -202,13 +202,22 @@ def google_callback():
 # --------------------------------------------------------------------------
 
 @auth_bp.route("/logout", methods=["GET", "POST"])
-@login_required
 @log_execution
 def logout():
-    """Logs out the current user session."""
-    user_email = current_user.email
-    logout_user()
+    """Logs out the current user session and clears all authentication cookies."""
+    user_email = current_user.email if current_user.is_authenticated else "Anonymous"
+    try:
+        logout_user()
+    except Exception:
+        pass
     session.clear()
     app_logger.info(f"[AUTH] User {user_email} logged out.")
     flash("You have been signed out.", "info")
-    return redirect(url_for("ui.login"))
+
+    resp = redirect(url_for("ui.login"))
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0, post-check=0, pre-check=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    resp.delete_cookie("session")
+    resp.delete_cookie("remember_token")
+    return resp

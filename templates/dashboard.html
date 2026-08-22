@@ -312,6 +312,11 @@
 
                     <select id="txn-category-filter" onchange="filterTransactionsLive()" class="w-full sm:w-auto bg-slate-800/80 border border-slate-700/80 text-slate-200 text-xs rounded-xl px-3 py-2 outline-none focus:border-indigo-500 cursor-pointer">
                         <option value="">All Categories</option>
+                        {% if initial_categories %}
+                            {% for cat in initial_categories %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                            {% endfor %}
+                        {% endif %}
                     </select>
 
                     <select id="txn-mode-filter" onchange="filterTransactionsLive()" class="w-full sm:w-auto bg-slate-800/80 border border-slate-700/80 text-slate-200 text-xs rounded-xl px-3 py-2 outline-none focus:border-indigo-500 cursor-pointer">
@@ -320,6 +325,8 @@
                         <option value="UPI">UPI</option>
                         <option value="BANK_TRANSFER">Bank Transfer</option>
                         <option value="CARD">Card</option>
+                        <option value="CARRIER_PAY">Carrier Pay (COD)</option>
+                        <option value="NET_BANKING">Net Banking</option>
                         <option value="CHEQUE">Cheque</option>
                         <option value="OTHER">Other</option>
                     </select>
@@ -343,9 +350,13 @@
                         </tr>
                     </thead>
                     <tbody id="transactions-tbody">
-                        <tr>
-                            <td colspan="9" class="text-center py-8 text-slate-400 text-xs">Loading transactions...</td>
-                        </tr>
+                        {% if initial_transactions %}
+                            <!-- Will be rehydrated by JS instantly -->
+                        {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center py-8 text-slate-400 text-xs">No transactions recorded yet. Click "+ Add Entry" to record income or expenses.</td>
+                            </tr>
+                        {% endif %}
                     </tbody>
                 </table>
             </div>
@@ -378,7 +389,61 @@
         </div>
 
         <div id="categories-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            <!-- Populated dynamically via JS -->
+            {% if initial_categories %}
+                {% for c in initial_categories %}
+                <div class="stat-card" id="cat-card-{{ c.id }}" style="border-left: 4px solid {{ c.color }}">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm" style="background-color: {{ c.color }}20; color: {{ c.color }}">
+                                <i class="fa-solid {{ c.icon }}"></i>
+                            </div>
+                            <div>
+                                <span class="font-bold text-white text-sm block leading-tight">{{ c.name }}</span>
+                                <span class="text-[10px] text-slate-400 uppercase tracking-wider">{{ c.type }}</span>
+                            </div>
+                        </div>
+                        <button type="button" onclick="deleteCategory({{ c.id }})" class="btn-icon-danger text-xs" title="Delete Category">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+
+                    <!-- Budget & Progress -->
+                    <div class="my-3 p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/50">
+                        <div class="flex items-center justify-between text-xs mb-1">
+                            <span class="text-slate-400 flex items-center gap-1">
+                                <i class="fa-solid fa-bullseye text-[10px] text-amber-400"></i> Budget:
+                            </span>
+                            <div class="flex items-center gap-1">
+                                <span class="font-semibold text-slate-200" id="cat-budget-label-{{ c.id }}">
+                                    {% if c.budget and c.budget > 0 %}
+                                        <span class="currency-symbol">{{ '₹' if not active_event or active_event.event.currency == 'INR' else active_event.event.currency }}</span> {{ "{:,.0f}".format(c.budget) }}
+                                    {% else %}
+                                        <span class="text-slate-500 font-normal">No Limit</span>
+                                    {% endif %}
+                                </span>
+                                <button type="button" onclick="promptEditCategoryBudget({{ c.id }}, {{ c.budget or 0 }})" class="text-[11px] text-indigo-400 hover:text-indigo-300 p-0.5 ml-1" title="0ms Quick Edit Budget">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Financial Totals -->
+                    <div class="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-800">
+                        <div>
+                            <span class="text-slate-400 block text-[10px]">Total Outflow:</span>
+                            <span class="font-bold text-rose-400"><span class="currency-symbol">{{ '₹' if not active_event or active_event.event.currency == 'INR' else active_event.event.currency }}</span> {{ "{:,.0f}".format(c.total_spent or 0) }}</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400 block text-[10px]">Total Inflow:</span>
+                            <span class="font-bold text-emerald-400"><span class="currency-symbol">{{ '₹' if not active_event or active_event.event.currency == 'INR' else active_event.event.currency }}</span> {{ "{:,.0f}".format(c.total_received or 0) }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-xs text-slate-400 py-8 col-span-3 text-center">No categories created yet. Click "Apply Preset Template" or "+ Custom Category" above!</p>
+            {% endif %}
         </div>
     </section>
 
@@ -793,6 +858,11 @@
                     <label class="form-label">Category</label>
                     <select name="category_id" id="modal-txn-category-select" class="form-select">
                         <option value="">-- Select Category --</option>
+                        {% if initial_categories %}
+                            {% for cat in initial_categories %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                            {% endfor %}
+                        {% endif %}
                     </select>
                 </div>
                 <div class="form-group">
@@ -1021,5 +1091,14 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Instant 0ms Server Preloaded State -->
+<script id="server-initial-state" type="application/json">
+{
+    "categories": {{ (initial_categories or []) | tojson }},
+    "transactions": {{ (initial_transactions or []) | tojson }},
+    "currentEventId": {{ (active_event.event.id if active_event and active_event.event else (events[0].id if events else 'null')) | tojson }}
+}
+</script>
 
 {% endblock %}
