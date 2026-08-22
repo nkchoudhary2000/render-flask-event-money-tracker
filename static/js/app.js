@@ -1111,32 +1111,42 @@ async function onSelectExistingDriveFolder(folderId, folderName) {
 }
 
 async function submitDriveFolder(e) {
-    e.preventDefault();
-    const folderName = document.getElementById('drive-folder-input').value.trim();
-    if (!folderName) return;
+    if (e && e.preventDefault) e.preventDefault();
+    const folderInput = document.getElementById('drive-folder-input');
+    const folderName = folderInput ? folderInput.value.trim() : '';
+    if (!folderName) {
+        showToast('Please enter a folder name.', 'warning');
+        return;
+    }
+
+    showToast(`Creating & configuring folder "${folderName}" in Google Drive...`, 'info');
 
     try {
         const res = await fetch('/api/drive/folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folder_name: folderName })
+            body: JSON.stringify({
+                folder_name: folderName,
+                parent_id: DriveExplorerState.currentParentId || 'root'
+            })
         });
         const data = await res.json();
 
         if (res.ok && data.status === 'success') {
-            showToast(`Designated folder updated to "${data.folder_name}"!`, 'success');
+            showToast(`Folder "${data.folder_name}" created & set as active backup destination!`, 'success');
             const activeNameEl = document.getElementById('active-drive-folder-name');
             const activeIdEl = document.getElementById('active-drive-folder-id');
 
             if (activeNameEl) activeNameEl.textContent = data.folder_name;
             if (activeIdEl) activeIdEl.textContent = data.folder_id ? `ID: ${data.folder_id}` : '';
 
-            loadUserDriveFolders(DriveExplorerState.currentParentId, false);
+            // Immediately re-scan and refresh in-panel explorer to display the newly created folder
+            await loadUserDriveFolders(DriveExplorerState.currentParentId, true);
         } else {
-            showToast(data.message || 'Failed to update folder', 'error');
+            showToast(data.message || 'Failed to create and set folder', 'error');
         }
     } catch (err) {
-        showToast('Error updating folder settings', 'error');
+        showToast('Error communicating with Google Drive', 'error');
     }
 }
 

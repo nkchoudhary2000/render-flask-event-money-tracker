@@ -780,11 +780,11 @@ def select_drive_folder():
 @log_execution
 def setup_drive_folder():
     """
-    Configure Google Drive Folder
+    Create & Set Google Drive Destination Folder
     ---
     tags:
       - Google Drive
-    summary: Sets or customizes the Google Drive folder name for the user
+    summary: Creates a new folder (or links existing by name) and designates it as active backup destination
     parameters:
       - in: body
         name: body
@@ -794,20 +794,27 @@ def setup_drive_folder():
             folder_name:
               type: string
               example: "MyWedding2026_Receipts"
+            parent_id:
+              type: string
+              default: "root"
     responses:
       200:
-        description: Folder configured successfully
+        description: Folder created and configured successfully
     """
     data = request.get_json(silent=True) or request.form.to_dict()
     folder_name = data.get("folder_name")
+    parent_id = data.get("parent_id", "root")
+
+    if not folder_name or not folder_name.strip():
+        return jsonify({"status": "error", "message": "Folder name cannot be empty."}), 400
 
     try:
-        folder_id = DriveService.get_or_create_app_folder(current_user, folder_name=folder_name)
+        res = DriveService.create_and_set_folder(current_user, folder_name=folder_name.strip(), parent_id=parent_id)
         return jsonify({
             "status": "success",
-            "message": f"Google Drive folder configured.",
-            "folder_id": folder_id,
-            "folder_name": current_user.google_drive_folder_name
+            "message": f"Folder '{res['folder_name']}' created and set as active destination.",
+            "folder_id": res["folder_id"],
+            "folder_name": res["folder_name"]
         }), 200
     except ValueError as e:
         return jsonify({"status": "error", "message": str(e)}), 400

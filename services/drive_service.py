@@ -57,6 +57,69 @@ class DriveService:
 
     @classmethod
     @log_execution
+    def create_and_set_folder(cls, user: User, folder_name: str, parent_id: str = "root") -> dict:
+        """
+        Creates a new folder under parent_id (or finds an existing one by name) and sets it as user's designated backup destination.
+        """
+        if not folder_name or not folder_name.strip():
+            raise ValueError("Folder name cannot be empty.")
+
+        target_name = folder_name.strip()
+        target_parent = parent_id.strip() if (parent_id and parent_id.strip()) else "root"
+        drive = cls.get_drive_client(user)
+
+        # 1. Search if folder already exists under this parent
+        if target_parent == "root":
+            search_query = f"mimeType = 'application/vnd.google-apps.folder' and name = '{target_name}' and trashed = false"
+        else:
+            search_query = f"mimeType = 'application/vnd.google-apps.folder' and name = '{target_name}' and trashed = false and '{target_parent}' in parents"
+
+        try:
+            results = drive.files().list(q=search_query, spaces="drive", fields="files(id, name, webViewLink)").execute()
+            log_external_api("GoogleDrive", "files().list (Search Folder)", "GET", payload={"q": search_query}, response=results)
+            files = results.get("files", [])
+            if files:
+                folder_id = files[0]["id"]
+                user.google_drive_folder_id = folder_id
+                user.google_drive_folder_name = target_name
+                db.session.commit()
+                app_logger.info(f"[DRIVE] Reused existing folder '{target_name}' (ID: {folder_id}) for User ID: {user.id}")
+                return {
+                    "folder_id": folder_id,
+                    "folder_name": target_name,
+                    "web_view_link": files[0].get("webViewLink")
+                }
+        except Exception as e:
+            app_logger.warning(f"[DRIVE] Folder search warning: {str(e)}")
+
+        # 2. Create the folder in Google Drive
+        try:
+            file_metadata = {
+                "name": target_name,
+                "mimeType": "application/vnd.google-apps.folder"
+            }
+            if target_parent != "root":
+                file_metadata["parents"] = [target_parent]
+
+            folder = drive.files().create(body=file_metadata, fields="id, name, webViewLink").execute()
+            log_external_api("GoogleDrive", "files().create (Folder)", "POST", payload=file_metadata, response=folder)
+
+            folder_id = folder.get("id")
+            user.google_drive_folder_id = folder_id
+            user.google_drive_folder_name = target_name
+            db.session.commit()
+            app_logger.info(f"[DRIVE] Successfully created & set folder '{target_name}' (ID: {folder_id}) for User ID: {user.id}")
+            return {
+                "folder_id": folder_id,
+                "folder_name": target_name,
+                "web_view_link": folder.get("webViewLink")
+            }
+        except Exception as e:
+            app_logger.error(f"[DRIVE] Failed to create folder in Drive: {str(e)}")
+            raise ValueError(f"Failed to create Google Drive folder: {str(e)}")
+
+    @classmethod
+    @log_execution
     def get_or_create_app_folder(cls, user: User, folder_name: str = None) -> str:
         """
         Retrieves existing designated Drive folder or creates a new one in the user's Drive.
@@ -64,8 +127,8 @@ class DriveService:
         drive = cls.get_drive_client(user)
         target_name = folder_name or user.google_drive_folder_name or current_app.config.get("GOOGLE_DRIVE_FOLDER_NAME", "EventMoneyTracker_Receipts")
 
-        # 1. Check if existing folder_id is still valid
-        if user.google_drive_folder_id:
+        # 1. Check if existing folder_id is still valid AND matches the requested name
+        if user.google_drive_folder_id and (not folder_name or folder_name == user.google_drive_folder_name):
             try:
                 res = drive.files().get(fileId=user.google_drive_folder_id, fields="id, name, trashed").execute()
                 log_external_api("GoogleDrive", f"files().get({user.google_drive_folder_id})", "GET", response=res)
@@ -74,40 +137,9 @@ class DriveService:
             except Exception as e:
                 app_logger.warning(f"[DRIVE] Existing folder ID {user.google_drive_folder_id} invalid or inaccessible: {str(e)}. Will search or recreate.")
 
-        # 2. Search for folder by name in user's root Drive
-        query = f"mimeType = 'application/vnd.google-apps.folder' and name = '{target_name}' and trashed = false"
-        try:
-            results = drive.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
-            log_external_api("GoogleDrive", "files().list", "GET", payload={"q": query}, response=results)
-            files = results.get("files", [])
-            if files:
-                folder_id = files[0]["id"]
-                user.google_drive_folder_id = folder_id
-                user.google_drive_folder_name = target_name
-                db.session.commit()
-                app_logger.info(f"[DRIVE] Found existing folder '{target_name}' with ID: {folder_id}")
-                return folder_id
-        except Exception as e:
-            app_logger.error(f"[DRIVE] Error querying Drive folders: {str(e)}")
-
-        # 3. Create folder if not found
-        try:
-            file_metadata = {
-                "name": target_name,
-                "mimeType": "application/vnd.google-apps.folder"
-            }
-            folder = drive.files().create(body=file_metadata, fields="id, name").execute()
-            log_external_api("GoogleDrive", "files().create (Folder)", "POST", payload=file_metadata, response=folder)
-            
-            folder_id = folder.get("id")
-            user.google_drive_folder_id = folder_id
-            user.google_drive_folder_name = target_name
-            db.session.commit()
-            app_logger.info(f"[DRIVE] Created designated folder '{target_name}' with ID: {folder_id} for User ID: {user.id}")
-            return folder_id
-        except Exception as e:
-            app_logger.error(f"[DRIVE] Failed to create folder in Drive: {str(e)}")
-            raise ValueError(f"Failed to create Google Drive folder: {str(e)}")
+        # 2. Use create_and_set_folder logic
+        result = cls.create_and_set_folder(user, folder_name=target_name, parent_id="root")
+        return result["folder_id"]
 
     @classmethod
     @log_execution
