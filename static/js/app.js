@@ -104,11 +104,9 @@ async function loadEventFullData(eventId, silent = false) {
             fetch(`/api/events/${eventId}/categories`)
         ]);
 
-        const [analyticsData, txnsData, catsData] = await Promise.all([
-            analyticsRes.json(),
-            txnsRes.json(),
-            catsRes.json()
-        ]);
+        const analyticsData = analyticsRes.ok ? await analyticsRes.json() : { status: 'error' };
+        const txnsData = txnsRes.ok ? await txnsRes.json() : { status: 'error' };
+        const catsData = catsRes.ok ? await catsRes.json() : { status: 'error' };
 
         if (analyticsData.status === 'success') {
             AppState.analytics = analyticsData.analytics;

@@ -165,34 +165,34 @@ class EventService:
     @staticmethod
     @log_execution
     def get_event_categories(event_id: int, user_id: int, include_totals: bool = True, is_admin: bool = False) -> list:
-        """Fetches categories belonging to an event with ultra-fast single-query aggregated totals."""
+        """Fetches categories belonging to an event with ultra-fast aggregated totals."""
         event = EventService.get_event(event_id, user_id, is_admin)
         
-        if not include_totals:
-            categories = Category.query.filter_by(event_id=event.id).order_by(Category.name.asc()).all()
+        categories = Category.query.filter_by(event_id=event.id).order_by(Category.name.asc()).all()
+        if not include_totals or not categories:
             return [c.to_dict(include_totals=False) for c in categories]
 
-        results = db.session.query(
-            Category,
-            func.coalesce(func.sum(case((Transaction.type == 'EXPENSE', Transaction.amount), else_=0)), 0).label('total_spent'),
-            func.coalesce(func.sum(case((Transaction.type == 'INCOME', Transaction.amount), else_=0)), 0).label('total_received'),
-            func.count(Transaction.id).label('txn_count')
-        ).outerjoin(
-            Transaction, Transaction.category_id == Category.id
+        cat_stats = db.session.query(
+            Transaction.category_id,
+            func.coalesce(func.sum(case((Transaction.type == 'EXPENSE', Transaction.amount), else_=0)), 0).label('spent'),
+            func.coalesce(func.sum(case((Transaction.type == 'INCOME', Transaction.amount), else_=0)), 0).label('received'),
+            func.count(Transaction.id).label('count')
         ).filter(
-            Category.event_id == event.id
+            Transaction.event_id == event.id,
+            Transaction.category_id.isnot(None)
         ).group_by(
-            Category.id
-        ).order_by(
-            Category.name.asc()
+            Transaction.category_id
         ).all()
 
+        stats_map = {row[0]: (float(row[1] or 0), float(row[2] or 0), int(row[3] or 0)) for row in cat_stats}
+
         output = []
-        for cat, spent, received, count in results:
+        for cat in categories:
             d = cat.to_dict(include_totals=False)
-            d["total_spent"] = float(spent or 0.0)
-            d["total_received"] = float(received or 0.0)
-            d["transaction_count"] = int(count or 0)
+            spent, received, count = stats_map.get(cat.id, (0.0, 0.0, 0))
+            d["total_spent"] = spent
+            d["total_received"] = received
+            d["transaction_count"] = count
             output.append(d)
         return output
 

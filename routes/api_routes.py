@@ -661,6 +661,7 @@ def get_drive_status():
     return jsonify({"status": "success", "drive": status}), 200
 
 
+@api_bp.route("/drive/folder", methods=["POST"])
 @api_bp.route("/drive/setup-folder", methods=["POST"])
 @login_required
 @log_execution
@@ -699,6 +700,7 @@ def setup_drive_folder():
         return jsonify({"status": "error", "message": str(e)}), 400
 
 
+@api_bp.route("/backup/drive", methods=["POST"])
 @api_bp.route("/drive/backup-user-data", methods=["POST"])
 @login_required
 @log_execution
