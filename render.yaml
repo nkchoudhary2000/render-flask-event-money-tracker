@@ -5,11 +5,13 @@ services:
     region: oregon
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn wsgi:app
+    startCommand: gunicorn wsgi:app --timeout 120
     autoDeploy: true
     envVars:
       - key: FLASK_ENV
         value: production
+      - key: PYTHON_VERSION
+        value: 3.11.8
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
@@ -21,7 +23,7 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: GOOGLE_DRIVE_FOLDER_NAME
-        value: EventMoneyTracker_Files
+        value: EventMoneyTracker_Receipts
       - key: LOG_LEVEL
         value: INFO
 

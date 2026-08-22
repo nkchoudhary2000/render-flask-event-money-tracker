@@ -16,6 +16,19 @@ def create_app(config_name: str = None) -> Flask:
     config_class = config_by_name.get(config_name, config_by_name["default"])
     app.config.from_object(config_class)
 
+    # Dynamic refresh of DB URL from environment if provided (for development/production)
+    if config_name != "testing":
+        db_url = os.getenv("DATABASE_URL")
+        if db_url:
+            if db_url.startswith("postgres://"):
+                db_url = db_url.replace("postgres://", "postgresql://", 1)
+            app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+            if not db_url.startswith("sqlite"):
+                app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+                    "pool_pre_ping": True,
+                    "pool_recycle": 300,
+                }
+
     # Initialize logger
     setup_logger("event_tracker", log_level=app.config.get("LOG_LEVEL", "DEBUG"))
     app_logger.info(f"[BOOTSTRAP] Initializing Event Money Tracker in [{config_name.upper()}] mode.")
