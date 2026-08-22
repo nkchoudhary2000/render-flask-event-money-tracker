@@ -4,7 +4,7 @@ from flask import current_app
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from extensions import db
 from models import User
 from logger import app_logger, log_execution, log_external_api
@@ -30,22 +30,20 @@ class DriveService:
             token_uri="https://oauth2.googleapis.com/token",
             client_id=client_id,
             client_secret=client_secret,
-            scopes=scopes,
-            expiry=user.google_token_expiry
+            scopes=scopes
         )
 
-        # Refresh token if expired
-        if creds.expired or (user.google_token_expiry and user.google_token_expiry <= datetime.datetime.utcnow()):
-            app_logger.info(f"[DRIVE] Token expired for User ID: {user.id}. Refreshing access token via Google OAuth.")
+        # Refresh token automatically if expired
+        if creds.expired and creds.refresh_token:
             try:
                 creds.refresh(Request())
                 user.google_access_token = creds.token
                 if creds.expiry:
                     user.google_token_expiry = creds.expiry
                 db.session.commit()
-                app_logger.info(f"[DRIVE] Token successfully refreshed and persisted for User ID: {user.id}")
+                app_logger.info(f"[DRIVE] Successfully refreshed Google Drive OAuth token for User ID: {user.id}")
             except Exception as e:
-                app_logger.error(f"[DRIVE] Token refresh failed for User ID: {user.id}: {str(e)}")
+                app_logger.error(f"[DRIVE] Failed to refresh token for User ID {user.id}: {str(e)}")
                 raise ValueError(f"Failed to refresh Google Drive access: {str(e)}")
 
         return creds
@@ -53,7 +51,7 @@ class DriveService:
     @classmethod
     @log_execution
     def get_drive_client(cls, user: User):
-        """Initializes and returns the Google Drive API v3 discovery client."""
+        """Returns authorized Google Drive v3 Resource."""
         creds = cls.get_credentials(user)
         return build("drive", "v3", credentials=creds, cache_discovery=False)
 
@@ -115,24 +113,68 @@ class DriveService:
     @log_execution
     def list_user_drive_folders(cls, user: User, parent_id: str = "root") -> dict:
         """
-        Lists folders inside a specific parent (defaults to 'root') with metadata and web links.
+        Lists folders and files inside a specific parent (defaults to 'root') for in-panel browsing.
+        Always retrieves folders from user's Drive reliably, including fallback to all top folders.
         """
         drive = cls.get_drive_client(user)
         target_parent = parent_id.strip() if (parent_id and parent_id.strip()) else "root"
 
-        query = f"mimeType = 'application/vnd.google-apps.folder' and trashed = false and '{target_parent}' in parents"
-        try:
-            results = drive.files().list(
-                q=query,
-                spaces="drive",
-                fields="files(id, name, modifiedTime, webViewLink, parents)",
-                orderBy="name asc",
-                pageSize=100
-            ).execute()
-            log_external_api("GoogleDrive", "files().list (Folders)", "GET", payload={"q": query}, response=results)
+        folders = []
+        files = []
 
-            current_folder_info = {"id": target_parent, "name": "Google Drive (Root)", "is_root": True, "parents": []}
-            if target_parent != "root":
+        try:
+            if target_parent == "root":
+                # 1. Try listing root folders
+                q_folders = "mimeType = 'application/vnd.google-apps.folder' and trashed = false and 'root' in parents"
+                try:
+                    res_folders = drive.files().list(
+                        q=q_folders,
+                        spaces="drive",
+                        fields="files(id, name, modifiedTime, webViewLink, parents)",
+                        orderBy="name asc",
+                        pageSize=100
+                    ).execute()
+                    folders = res_folders.get("files", [])
+                except Exception:
+                    folders = []
+
+                # 2. If 'root' in parents returned empty, query all available folders in user's Drive
+                if not folders:
+                    q_all = "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+                    res_all = drive.files().list(
+                        q=q_all,
+                        spaces="drive",
+                        fields="files(id, name, modifiedTime, webViewLink, parents)",
+                        orderBy="name asc",
+                        pageSize=100
+                    ).execute()
+                    folders = res_all.get("files", [])
+
+                current_folder_info = {"id": "root", "name": "My Drive", "is_root": True, "parents": []}
+            else:
+                # Query subfolders inside this parent
+                q_subfolders = f"mimeType = 'application/vnd.google-apps.folder' and trashed = false and '{target_parent}' in parents"
+                res_subfolders = drive.files().list(
+                    q=q_subfolders,
+                    spaces="drive",
+                    fields="files(id, name, modifiedTime, webViewLink, parents)",
+                    orderBy="name asc",
+                    pageSize=100
+                ).execute()
+                folders = res_subfolders.get("files", [])
+
+                # Query non-folder files inside this parent (backups, receipts, etc.)
+                q_files = f"mimeType != 'application/vnd.google-apps.folder' and trashed = false and '{target_parent}' in parents"
+                res_files = drive.files().list(
+                    q=q_files,
+                    spaces="drive",
+                    fields="files(id, name, mimeType, size, modifiedTime, webViewLink, thumbnailLink)",
+                    orderBy="modifiedTime desc",
+                    pageSize=50
+                ).execute()
+                files = res_files.get("files", [])
+
+                # Get folder metadata
                 try:
                     f_info = drive.files().get(fileId=target_parent, fields="id, name, webViewLink, parents").execute()
                     current_folder_info = {
@@ -142,16 +184,17 @@ class DriveService:
                         "parents": f_info.get("parents", []),
                         "is_root": False
                     }
-                except Exception as ex:
-                    app_logger.warning(f"[DRIVE] Could not get metadata for parent folder {target_parent}: {str(ex)}")
+                except Exception:
+                    current_folder_info = {"id": target_parent, "name": "Folder", "is_root": False, "parents": []}
 
             return {
                 "current_parent": current_folder_info,
-                "folders": results.get("files", [])
+                "folders": folders,
+                "files": files
             }
         except Exception as e:
-            app_logger.error(f"[DRIVE] Error listing user Drive folders under parent '{target_parent}': {str(e)}")
-            raise ValueError(f"Could not load Google Drive folders: {str(e)}")
+            app_logger.error(f"[DRIVE] Error listing Drive contents for '{target_parent}': {str(e)}")
+            raise ValueError(f"Could not load Google Drive contents: {str(e)}")
 
     @classmethod
     @log_execution
@@ -233,6 +276,25 @@ class DriveService:
         """Uploads a user data backup directly to Google Drive."""
         stream = io.BytesIO(content_bytes)
         return cls.upload_file(user, stream, filename, mime_type)
+
+    @classmethod
+    @log_execution
+    def download_file_content(cls, user: User, file_id: str) -> tuple:
+        """Downloads file content bytes directly from Google Drive."""
+        drive = cls.get_drive_client(user)
+        try:
+            file_meta = drive.files().get(fileId=file_id, fields="id, name, mimeType").execute()
+            request = drive.files().get_media(fileId=file_id)
+            fh = io.BytesIO()
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while done is False:
+                status, done = downloader.next_chunk()
+            fh.seek(0)
+            return fh.read(), file_meta.get("name", "downloaded_file"), file_meta.get("mimeType", "application/octet-stream")
+        except Exception as e:
+            app_logger.error(f"[DRIVE] Failed to download file {file_id}: {str(e)}")
+            raise ValueError(f"Failed to download file from Google Drive: {str(e)}")
 
     @classmethod
     @log_execution

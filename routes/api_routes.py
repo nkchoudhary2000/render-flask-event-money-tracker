@@ -662,11 +662,11 @@ def get_drive_status():
 @log_execution
 def list_user_drive_folders():
     """
-    List Google Drive Folders
+    List Google Drive Folders & Files
     ---
     tags:
       - Google Drive
-    summary: Fetches all available folders in the user's Google Drive for custom folder selection
+    summary: Fetches all available folders and files in the user's Google Drive parent folder for in-panel browsing
     parameters:
       - name: parent_id
         in: query
@@ -674,7 +674,7 @@ def list_user_drive_folders():
         default: "root"
     responses:
       200:
-        description: List of Drive folders
+        description: List of Drive folders and files
       400:
         description: Error querying Google Drive
     """
@@ -685,10 +685,45 @@ def list_user_drive_folders():
             "status": "success",
             "current_parent": data.get("current_parent", {}),
             "folders": data.get("folders", []),
-            "count": len(data.get("folders", [])),
+            "files": data.get("files", []),
+            "count_folders": len(data.get("folders", [])),
+            "count_files": len(data.get("files", [])),
             "current_folder_id": current_user.google_drive_folder_id,
             "current_folder_name": current_user.google_drive_folder_name
         }), 200
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@api_bp.route("/drive/files/<file_id>/download", methods=["GET"])
+@login_required
+@log_execution
+def download_drive_file(file_id: str):
+    """
+    Download File from Google Drive
+    ---
+    tags:
+      - Google Drive
+    summary: Downloads a file stored in the user's Google Drive
+    parameters:
+      - name: file_id
+        in: path
+        type: string
+        required: true
+    responses:
+      200:
+        description: File binary stream
+      400:
+        description: Download error
+    """
+    try:
+        content_bytes, filename, mime_type = DriveService.download_file_content(current_user, file_id)
+        return send_file(
+            io.BytesIO(content_bytes),
+            mimetype=mime_type,
+            as_attachment=True,
+            download_name=filename
+        )
     except ValueError as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 

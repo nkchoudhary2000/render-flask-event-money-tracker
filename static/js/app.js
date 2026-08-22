@@ -823,9 +823,35 @@ async function submitCreateEvent(e) {
 // ============================================================================
 const DriveExplorerState = {
     currentParentId: 'root',
-    currentParentName: 'Google Drive (Root)',
-    pathHistory: [{ id: 'root', name: 'Root' }]
+    currentParentName: 'My Drive',
+    pathHistory: [{ id: 'root', name: 'My Drive' }]
 };
+
+function formatDriveFileSize(bytes) {
+    if (!bytes || isNaN(bytes) || bytes <= 0) return '';
+    const num = parseFloat(bytes);
+    if (num < 1024) return `${num} B`;
+    if (num < 1024 * 1024) return `${(num / 1024).toFixed(1)} KB`;
+    return `${(num / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getFileIconClass(mimeType, fileName = '') {
+    if (!mimeType) mimeType = '';
+    const lowerName = fileName.toLowerCase();
+    if (mimeType.includes('image') || lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) {
+        return 'fa-file-image text-pink-400';
+    }
+    if (mimeType.includes('pdf') || lowerName.endsWith('.pdf')) {
+        return 'fa-file-pdf text-rose-400';
+    }
+    if (mimeType.includes('json') || lowerName.endsWith('.json')) {
+        return 'fa-file-code text-amber-400';
+    }
+    if (mimeType.includes('csv') || mimeType.includes('sheet') || lowerName.endsWith('.csv')) {
+        return 'fa-file-csv text-emerald-400';
+    }
+    return 'fa-file-lines text-slate-400';
+}
 
 async function triggerDriveBackup() {
     showToast('Initiating Google Drive backup...', 'info');
@@ -835,6 +861,8 @@ async function triggerDriveBackup() {
 
         if (res.ok && data.status === 'success') {
             showToast('Backup completed and saved to your designated Google Drive folder!', 'success');
+            // Refresh in-panel explorer to display the newly saved backup file
+            loadUserDriveFolders(DriveExplorerState.currentParentId, false);
         } else {
             showToast(data.message || 'Drive backup failed', 'error');
         }
@@ -843,12 +871,12 @@ async function triggerDriveBackup() {
     }
 }
 
-// Load and render Google Drive folder hierarchy
+// Load and render Google Drive folder and file hierarchy in the same panel
 async function loadUserDriveFolders(parentId = 'root', forceScan = false) {
     const tbody = document.getElementById('drive-folders-tbody');
     const breadcrumbsEl = document.getElementById('drive-breadcrumbs');
     const btnUp = document.getElementById('btn-drive-up');
-    const linkCurrentInDrive = document.getElementById('link-open-current-in-drive');
+    const itemCountsEl = document.getElementById('drive-item-counts');
     const activeNameEl = document.getElementById('active-drive-folder-name');
     const activeIdEl = document.getElementById('active-drive-folder-id');
 
@@ -856,7 +884,7 @@ async function loadUserDriveFolders(parentId = 'root', forceScan = false) {
     DriveExplorerState.currentParentId = parentId || 'root';
 
     if (forceScan || !tbody.children.length) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-slate-400 text-xs"><i class="fa-solid fa-spinner fa-spin mr-1.5 text-indigo-400"></i> Scanning Google Drive folders...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-slate-400 text-xs"><i class="fa-solid fa-spinner fa-spin mr-1.5 text-indigo-400"></i> Loading contents from My Drive...</td></tr>';
     }
 
     try {
@@ -865,18 +893,18 @@ async function loadUserDriveFolders(parentId = 'root', forceScan = false) {
 
         if (data.status === 'success') {
             const folders = data.folders || [];
+            const files = data.files || [];
             const currentFolderId = data.current_folder_id;
             const currentFolderName = data.current_folder_name || 'EventMoneyTracker_Receipts';
             const currentParent = data.current_parent || {};
 
-            DriveExplorerState.currentParentName = currentParent.name || (parentId === 'root' ? 'Google Drive (Root)' : 'Folder');
+            DriveExplorerState.currentParentName = currentParent.name || (parentId === 'root' ? 'My Drive' : 'Folder');
 
             if (activeNameEl) activeNameEl.textContent = currentFolderName;
             if (activeIdEl) activeIdEl.textContent = currentFolderId ? `ID: ${currentFolderId}` : '(Not set)';
 
-            // Update Open in Drive Link for current parent
-            if (linkCurrentInDrive) {
-                linkCurrentInDrive.href = currentParent.webViewLink || (parentId === 'root' ? 'https://drive.google.com' : `https://drive.google.com/drive/folders/${parentId}`);
+            if (itemCountsEl) {
+                itemCountsEl.textContent = `${folders.length} folder${folders.length === 1 ? '' : 's'}${files.length ? `, ${files.length} file${files.length === 1 ? '' : 's'}` : ''}`;
             }
 
             // Render Breadcrumbs
@@ -893,29 +921,30 @@ async function loadUserDriveFolders(parentId = 'root', forceScan = false) {
                 }
             }
 
-            // Render Folders List
-            if (folders.length === 0) {
+            // Render Folders & Files in the table
+            if (folders.length === 0 && files.length === 0) {
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="3" class="text-center py-8 text-slate-400 text-xs">
                             <div class="flex flex-col items-center justify-center space-y-1">
                                 <i class="fa-regular fa-folder-open text-2xl text-slate-600 mb-1"></i>
-                                <span>No subfolders found inside "${escapeHtml(DriveExplorerState.currentParentName)}".</span>
+                                <span>No items found inside "${escapeHtml(DriveExplorerState.currentParentName)}".</span>
                                 <span class="text-[10px] text-slate-500">You can create a new folder below or set this current folder as your destination.</span>
                             </div>
                         </td>
                     </tr>
                 `;
             } else {
-                tbody.innerHTML = folders.map(f => {
-                    const isSelected = (f.id === currentFolderId);
-                    const webLink = f.webViewLink || `https://drive.google.com/drive/folders/${f.id}`;
+                let html = '';
 
-                    return `
+                // 1. Folders Rows
+                folders.forEach(f => {
+                    const isSelected = (f.id === currentFolderId);
+                    html += `
                         <tr class="hover:bg-slate-800/40 transition">
                             <td>
                                 <div class="flex items-center space-x-2.5">
-                                    <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                                    <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0 cursor-pointer" onclick="navigateToDriveFolder('${f.id}', '${escapeHtml(f.name)}')">
                                         <i class="fa-solid fa-folder"></i>
                                     </div>
                                     <div>
@@ -932,34 +961,66 @@ async function loadUserDriveFolders(parentId = 'root', forceScan = false) {
                                         <i class="fa-solid fa-circle-check mr-1"></i> Active Destination
                                     </span>
                                 ` : `
-                                    <span class="text-[11px] text-slate-500">Available</span>
+                                    <span class="text-[11px] text-slate-400"><i class="fa-solid fa-folder text-amber-400 text-[10px] mr-1"></i> Folder</span>
                                 `}
                             </td>
                             <td class="text-right whitespace-nowrap">
                                 <div class="inline-flex items-center gap-1.5">
-                                    <!-- Enter Folder -->
-                                    <button type="button" onclick="navigateToDriveFolder('${f.id}', '${escapeHtml(f.name)}')" class="px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-lg text-xs font-semibold transition flex items-center gap-1" title="Get into folder to browse subfolders">
-                                        <i class="fa-solid fa-folder-open"></i> Open
+                                    <!-- Enter Folder In Panel -->
+                                    <button type="button" onclick="navigateToDriveFolder('${f.id}', '${escapeHtml(f.name)}')" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow-sm" title="Open this folder inside the panel">
+                                        <i class="fa-solid fa-folder-open"></i> Open Folder
                                     </button>
 
                                     <!-- Set as Destination -->
                                     <button type="button" onclick="onSelectExistingDriveFolder('${f.id}', '${escapeHtml(f.name)}')" class="px-2.5 py-1 ${isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'} rounded-lg text-xs font-semibold transition flex items-center gap-1" title="Set as designated backup folder">
-                                        <i class="fa-solid ${isSelected ? 'fa-check' : 'fa-bullseye'}"></i> ${isSelected ? 'Selected' : 'Select'}
+                                        <i class="fa-solid ${isSelected ? 'fa-check' : 'fa-bullseye'}"></i> ${isSelected ? 'Selected' : 'Set Destination'}
                                     </button>
-
-                                    <!-- Open in Google Drive Web -->
-                                    <a href="${webLink}" target="_blank" class="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-lg text-xs transition" title="Open this folder on Google Drive web interface">
-                                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                                    </a>
                                 </div>
                             </td>
                         </tr>
                     `;
-                }).join('');
+                });
+
+                // 2. Files Rows (Receipts, JSON Backups)
+                files.forEach(file => {
+                    const iconCls = getFileIconClass(file.mimeType, file.name);
+                    const sizeStr = formatDriveFileSize(file.size);
+                    const modifiedStr = file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString() : '';
+
+                    html += `
+                        <tr class="hover:bg-slate-800/30 transition border-t border-slate-800/60">
+                            <td>
+                                <div class="flex items-center space-x-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-sm flex items-center justify-center shrink-0">
+                                        <i class="fa-solid ${iconCls}"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="font-medium text-slate-300 text-xs truncate max-w-xs sm:max-w-md" title="${escapeHtml(file.name)}">
+                                            ${escapeHtml(file.name)}
+                                        </div>
+                                        <div class="text-[10px] text-slate-500">${sizeStr ? sizeStr + ' • ' : ''}${modifiedStr}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="text-[10px] font-mono text-slate-400 uppercase bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/60">
+                                    ${file.name.split('.').pop() || 'FILE'}
+                                </span>
+                            </td>
+                            <td class="text-right whitespace-nowrap">
+                                <a href="/api/drive/files/${file.id}/download" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-medium transition inline-flex items-center gap-1" title="Download this file">
+                                    <i class="fa-solid fa-download text-xs"></i> Download
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                tbody.innerHTML = html;
             }
 
             if (forceScan) {
-                showToast(`Loaded ${folders.length} folders from Google Drive!`, 'success');
+                showToast(`Loaded ${folders.length} folders from My Drive!`, 'success');
             }
         } else {
             tbody.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-amber-400 text-xs">Please connect your Google Drive account first.</td></tr>';
@@ -982,19 +1043,18 @@ function renderDriveBreadcrumbs() {
         }
         return `
             <button type="button" onclick="navigateDriveToHistoryIndex(${idx})" class="font-semibold text-indigo-400 hover:underline flex items-center gap-1">
-                ${idx === 0 ? '<i class="fa-brands fa-google-drive mr-1"></i>' : ''}${escapeHtml(step.name)}
+                ${idx === 0 ? '<i class="fa-brands fa-google-drive text-amber-400 mr-1"></i>' : ''}${escapeHtml(step.name)}
             </button>
             <span class="text-slate-600">/</span>
         `;
     }).join('');
 }
 
-// Get into a folder (drill down into subfolder)
+// Get into a folder (drill down into subfolder in the same panel)
 function navigateToDriveFolder(folderId, folderName) {
     if (folderId === 'root') {
-        DriveExplorerState.pathHistory = [{ id: 'root', name: 'Root' }];
+        DriveExplorerState.pathHistory = [{ id: 'root', name: 'My Drive' }];
     } else {
-        // Prevent duplicate appending
         const existingIdx = DriveExplorerState.pathHistory.findIndex(p => p.id === folderId);
         if (existingIdx !== -1) {
             DriveExplorerState.pathHistory = DriveExplorerState.pathHistory.slice(0, existingIdx + 1);
@@ -1037,11 +1097,9 @@ async function onSelectExistingDriveFolder(folderId, folderName) {
             showToast(`Active destination set to "${data.folder.folder_name}"!`, 'success');
             const activeNameEl = document.getElementById('active-drive-folder-name');
             const activeIdEl = document.getElementById('active-drive-folder-id');
-            const activeLink = document.getElementById('link-open-active-destination');
 
             if (activeNameEl) activeNameEl.textContent = data.folder.folder_name;
             if (activeIdEl) activeIdEl.textContent = `ID: ${data.folder.folder_id}`;
-            if (activeLink) activeLink.href = `https://drive.google.com/drive/folders/${data.folder.folder_id}`;
 
             loadUserDriveFolders(DriveExplorerState.currentParentId, false);
         } else {
@@ -1069,11 +1127,9 @@ async function submitDriveFolder(e) {
             showToast(`Designated folder updated to "${data.folder_name}"!`, 'success');
             const activeNameEl = document.getElementById('active-drive-folder-name');
             const activeIdEl = document.getElementById('active-drive-folder-id');
-            const activeLink = document.getElementById('link-open-active-destination');
 
             if (activeNameEl) activeNameEl.textContent = data.folder_name;
             if (activeIdEl) activeIdEl.textContent = data.folder_id ? `ID: ${data.folder_id}` : '';
-            if (activeLink && data.folder_id) activeLink.href = `https://drive.google.com/drive/folders/${data.folder_id}`;
 
             loadUserDriveFolders(DriveExplorerState.currentParentId, false);
         } else {

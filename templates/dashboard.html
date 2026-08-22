@@ -411,46 +411,44 @@
                     <div class="flex items-center justify-between flex-wrap gap-2">
                         <div>
                             <h4 class="text-xs sm:text-sm font-bold text-slate-200 flex items-center gap-1.5">
-                                <i class="fa-solid fa-folder-tree text-amber-400"></i> Google Drive Folder Browser & Explorer
+                                <i class="fa-solid fa-folder-tree text-amber-400"></i> My Drive In-Panel Folder Explorer
                             </h4>
-                            <p class="text-[11px] sm:text-xs text-slate-400">Browse your Google Drive folders from root, drill down into subfolders, and select your backup destination.</p>
+                            <p class="text-[11px] sm:text-xs text-slate-400">Browse folders and files directly inside this panel without leaving the application.</p>
                         </div>
                         <div class="flex items-center gap-2">
                             <button type="button" id="btn-drive-up" onclick="navigateDriveFolderUp()" class="hidden px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition items-center gap-1">
-                                <i class="fa-solid fa-arrow-up"></i> Up
+                                <i class="fa-solid fa-arrow-up"></i> ⬆ Up One Level
                             </button>
-                            <button type="button" onclick="loadUserDriveFolders(DriveExplorerState.currentParentId, true)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5" title="Scan and reload folders">
-                                <i class="fa-solid fa-arrows-rotate text-xs"></i> Scan Root
+                            <button type="button" onclick="navigateToDriveFolder('root', 'My Drive')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5" title="Scan and reload My Drive root folders">
+                                <i class="fa-solid fa-arrows-rotate text-xs"></i> Reload My Drive
                             </button>
                         </div>
                     </div>
 
                     <!-- Breadcrumb Path Bar -->
                     <div class="p-2.5 rounded-xl border border-slate-700/80 bg-slate-900/60 flex items-center justify-between text-xs overflow-x-auto">
-                        <div class="flex items-center gap-1 text-slate-300 min-w-0" id="drive-breadcrumbs">
-                            <button type="button" onclick="navigateToDriveFolder('root', 'Google Drive (Root)')" class="font-bold text-indigo-400 hover:underline flex items-center gap-1">
-                                <i class="fa-brands fa-google-drive"></i> Root
+                        <div class="flex items-center gap-1.5 text-slate-300 min-w-0" id="drive-breadcrumbs">
+                            <button type="button" onclick="navigateToDriveFolder('root', 'My Drive')" class="font-bold text-indigo-400 hover:underline flex items-center gap-1">
+                                <i class="fa-brands fa-google-drive text-amber-400"></i> My Drive
                             </button>
                         </div>
-                        <a id="link-open-current-in-drive" href="https://drive.google.com" target="_blank" class="text-[11px] text-indigo-400 hover:text-indigo-300 hover:underline flex items-center gap-1 shrink-0 ml-2" title="Open current folder on Google Drive web interface">
-                            <i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Drive
-                        </a>
+                        <span id="drive-item-counts" class="text-[11px] text-slate-400 shrink-0 ml-2"></span>
                     </div>
 
-                    <!-- Folders List Table / Explorer -->
+                    <!-- Folders & Files Explorer Table -->
                     <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
                         <table class="table-custom">
                             <thead>
                                 <tr>
-                                    <th>Folder Name</th>
-                                    <th>Status</th>
-                                    <th class="text-right">Actions</th>
+                                    <th>Item Name</th>
+                                    <th>Type / Details</th>
+                                    <th class="text-right">Actions (In-Panel)</th>
                                 </tr>
                             </thead>
                             <tbody id="drive-folders-tbody">
                                 <tr>
                                     <td colspan="3" class="text-center py-6 text-slate-400 text-xs">
-                                        <i class="fa-solid fa-spinner fa-spin mr-1"></i> Loading folders from Google Drive root...
+                                        <i class="fa-solid fa-spinner fa-spin mr-1 text-indigo-400"></i> Loading folders from My Drive...
                                     </td>
                                 </tr>
                             </tbody>
@@ -479,9 +477,9 @@
                                 <div id="active-drive-folder-id" class="text-[10px] font-mono text-slate-400">{{ drive_status.folder_id or '(Not selected yet)' }}</div>
                             </div>
                         </div>
-                        <a id="link-open-active-destination" href="{% if drive_status.folder_id %}https://drive.google.com/drive/folders/{{ drive_status.folder_id }}{% else %}https://drive.google.com{% endif %}" target="_blank" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shrink-0 transition" title="Open designated destination folder in Google Drive">
-                            <i class="fa-brands fa-google-drive"></i> Open Folder in Drive
-                        </a>
+                        <button type="button" onclick="triggerDriveBackup()" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shrink-0 transition shadow-sm">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Save Backup Here Now
+                        </button>
                     </div>
                 </div>
 
