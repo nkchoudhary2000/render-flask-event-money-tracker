@@ -6,6 +6,38 @@ from extensions import db, login_manager, cors, swagger, migrate
 from routes import ui_bp, api_bp, auth_bp
 from logger import setup_logger, app_logger
 
+def ensure_schema_compatibility(engine):
+    """
+    Safely inspects existing tables and performs automatic non-destructive ADD COLUMN
+    schema migrations for newly added model fields across PostgreSQL and SQLite.
+    """
+    from sqlalchemy import inspect, text
+    try:
+        inspector = inspect(engine)
+        table_names = inspector.get_table_names()
+
+        # 1. Ensure events table has event_type column
+        if "events" in table_names:
+            event_cols = [c["name"] for c in inspector.get_columns("events")]
+            if "event_type" not in event_cols:
+                app_logger.info("[SCHEMA AUTO-MIGRATION] Adding missing column 'event_type' to 'events' table...")
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE events ADD COLUMN event_type VARCHAR(50) DEFAULT 'WEDDING'"))
+                app_logger.info("[SCHEMA AUTO-MIGRATION] Successfully added 'event_type' column to 'events' table.")
+
+        # 2. Ensure categories table has budget column
+        if "categories" in table_names:
+            cat_cols = [c["name"] for c in inspector.get_columns("categories")]
+            if "budget" not in cat_cols:
+                app_logger.info("[SCHEMA AUTO-MIGRATION] Adding missing column 'budget' to 'categories' table...")
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE categories ADD COLUMN budget FLOAT"))
+                app_logger.info("[SCHEMA AUTO-MIGRATION] Successfully added 'budget' column to 'categories' table.")
+
+    except Exception as e:
+        app_logger.warning(f"[SCHEMA AUTO-MIGRATION] Schema check note: {e}")
+
+
 def create_app(config_name: str = None) -> Flask:
     """Application factory for Event Money Tracker."""
     if config_name is None:
@@ -76,20 +108,22 @@ def create_app(config_name: str = None) -> Flask:
             return jsonify({"status": "error", "message": "Internal server error"}), 500
         return render_template("base.html"), 500
 
-    # Auto-initialize database tables in development
+    # Auto-initialize and auto-migrate database schema
     with app.app_context():
         try:
             db.create_all()
-            app_logger.info("[BOOTSTRAP] Database tables verified / created.")
+            ensure_schema_compatibility(db.engine)
+            app_logger.info("[BOOTSTRAP] Database tables and columns verified / auto-migrated.")
         except Exception as db_err:
             app_logger.error(f"[BOOTSTRAP] Database table initialization warning: {str(db_err)}")
 
     # CLI Management Commands
     @app.cli.command("init-db")
     def init_db_command():
-        """Initializes database schema."""
+        """Initializes and auto-migrates database schema."""
         db.create_all()
-        print("Initialized the database tables.")
+        ensure_schema_compatibility(db.engine)
+        print("Initialized and verified database schema.")
 
     return app
 
