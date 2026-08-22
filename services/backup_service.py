@@ -234,6 +234,72 @@ class BackupService:
 
     @staticmethod
     @log_execution
+    def backup_global_database_to_google_drive(admin_user_id: int) -> dict:
+        """
+        Exports the entire database state (all users, events, categories, transactions, logs)
+        and uploads the backup JSON directly to the Admin's Google Drive designated folder.
+        """
+        admin = User.query.get(admin_user_id)
+        if not admin or not admin.is_admin:
+            raise PermissionError("Administrator privileges required.")
+        if not admin.has_google_drive_linked():
+            raise ValueError("Admin Google Drive is not connected. Please connect your Google account first.")
+
+        content_bytes, filename, mime_type = BackupService.export_global_database(admin_user_id)
+        upload_result = DriveService.upload_backup_content(admin, content_bytes, filename, mime_type)
+
+        audit = AuditLog(
+            user_id=admin.id,
+            action="ADMIN_GLOBAL_DRIVE_BACKUP",
+            details=json.dumps({"filename": filename, "file_id": upload_result.get("file_id")})
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        app_logger.info(f"[ADMIN BACKUP] Successfully backed up entire system database to Google Drive -> File: {filename}")
+        return {
+            "status": "success",
+            "message": "Entire database state successfully backed up to your Google Drive folder.",
+            "file": upload_result
+        }
+
+    @staticmethod
+    @log_execution
+    def restore_global_database_from_google_drive(admin_user_id: int, file_id: str, ip_address: str = None) -> dict:
+        """
+        Downloads a full database backup JSON file directly from Google Drive by file ID
+        and restores the entire system state atomically.
+        """
+        admin = User.query.get(admin_user_id)
+        if not admin or not admin.is_admin:
+            raise PermissionError("Administrator privileges required.")
+        if not admin.has_google_drive_linked():
+            raise ValueError("Admin Google Drive is not connected. Please connect your Google account first.")
+        if not file_id:
+            raise ValueError("Google Drive File ID is required for restore.")
+
+        app_logger.info(f"[ADMIN RESTORE] Downloading global DB backup file {file_id} from Google Drive...")
+        content_bytes, filename, _ = DriveService.download_file_content(admin, file_id)
+
+        try:
+            backup_data = json.loads(content_bytes.decode("utf-8"))
+        except Exception as e:
+            raise ValueError(f"Invalid JSON file format downloaded from Google Drive: {str(e)}")
+
+        result = BackupService.restore_global_database(admin_user_id, backup_data, ip_address=ip_address)
+
+        audit = AuditLog(
+            user_id=admin.id,
+            action="ADMIN_GLOBAL_DRIVE_RESTORE",
+            details=json.dumps({"filename": filename, "file_id": file_id, "restored_counts": result.get("restored_counts")})
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return result
+
+    @staticmethod
+    @log_execution
     def restore_global_database(admin_user_id: int, backup_data: dict, ip_address: str = None) -> dict:
         """
         Restores entire database state from a validated JSON backup in an atomic transaction.

@@ -524,28 +524,42 @@
                     </div>
                 </div>
 
-                <!-- Global Backup & Restore Controls -->
+                <!-- Global Backup & Restore Controls (With Google Drive Cloud Integration) -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                     <!-- Global Backup Card -->
-                    <div class="p-4 sm:p-5 rounded-2xl border border-indigo-500/30 bg-indigo-950/20">
-                        <h4 class="text-xs sm:text-sm font-bold text-white mb-1.5 flex items-center">
-                            <i class="fa-solid fa-database text-indigo-400 mr-2"></i> Global Database Backup
-                        </h4>
-                        <p class="text-[11px] sm:text-xs text-slate-300 mb-3 sm:mb-4">Export complete database state with SHA-256 integrity verification.</p>
-                        <a href="/api/admin/backup" class="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition inline-flex items-center gap-1.5">
-                            <i class="fa-solid fa-file-arrow-down"></i> Download Global DB Backup (JSON)
-                        </a>
+                    <div class="p-4 sm:p-5 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 flex flex-col justify-between space-y-3 sm:space-y-4">
+                        <div>
+                            <h4 class="text-xs sm:text-sm font-bold text-white mb-1.5 flex items-center">
+                                <i class="fa-solid fa-database text-indigo-400 mr-2"></i> Global Database Backup
+                            </h4>
+                            <p class="text-[11px] sm:text-xs text-slate-300">Export complete database state (all registered users, events, categories, transactions, audit logs) with SHA-256 integrity verification.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2 pt-1">
+                            <button type="button" onclick="triggerAdminGlobalDriveBackup()" class="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition inline-flex items-center gap-1.5">
+                                <i class="fa-brands fa-google-drive text-amber-400"></i> Backup Full DB to Google Drive
+                            </button>
+                            <a href="/api/admin/backup" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition inline-flex items-center gap-1.5">
+                                <i class="fa-solid fa-file-arrow-down"></i> Download JSON
+                            </a>
+                        </div>
                     </div>
 
                     <!-- Global Restore Card -->
-                    <div class="p-4 sm:p-5 rounded-2xl border border-rose-500/30 bg-rose-950/20">
-                        <h4 class="text-xs sm:text-sm font-bold text-rose-300 mb-1.5 flex items-center">
-                            <i class="fa-solid fa-triangle-exclamation text-rose-400 mr-2"></i> Global Database Restore
-                        </h4>
-                        <p class="text-[11px] sm:text-xs text-slate-300 mb-3 sm:mb-4">Restore database from a validated JSON backup with automatic transaction rollback.</p>
-                        <button type="button" onclick="openAdminRestoreModal()" class="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-rose-600/20 transition inline-flex items-center gap-1.5">
-                            <i class="fa-solid fa-upload"></i> Restore Database from File
-                        </button>
+                    <div class="p-4 sm:p-5 rounded-2xl border border-rose-500/30 bg-rose-950/20 flex flex-col justify-between space-y-3 sm:space-y-4">
+                        <div>
+                            <h4 class="text-xs sm:text-sm font-bold text-rose-300 mb-1.5 flex items-center">
+                                <i class="fa-solid fa-triangle-exclamation text-rose-400 mr-2"></i> Global Database Disaster Recovery
+                            </h4>
+                            <p class="text-[11px] sm:text-xs text-slate-300">Restore complete multi-user database from Google Drive or a validated JSON backup with automatic rollback.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2 pt-1">
+                            <button type="button" onclick="openAdminDriveRestoreModal()" class="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-rose-600/20 transition inline-flex items-center gap-1.5">
+                                <i class="fa-brands fa-google-drive text-amber-400"></i> Restore Full DB from Google Drive
+                            </button>
+                            <button type="button" onclick="openAdminRestoreModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-rose-200 text-xs font-semibold rounded-xl transition inline-flex items-center gap-1.5">
+                                <i class="fa-solid fa-upload"></i> Restore from Local File
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -831,7 +845,7 @@
     </div>
 </div>
 
-<!-- 4. ADMIN RESTORE DATABASE MODAL -->
+<!-- 4. ADMIN RESTORE DATABASE FROM LOCAL FILE MODAL -->
 {% if user.is_admin %}
 <div id="modal-admin-restore" class="modal-overlay hidden">
     <div class="modal-card max-w-lg border-rose-500/50">
@@ -854,6 +868,49 @@
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- 5. ADMIN RESTORE DATABASE FROM GOOGLE DRIVE MODAL -->
+<div id="modal-admin-drive-restore" class="modal-overlay hidden">
+    <div class="modal-card max-w-lg border-rose-500/50">
+        <div class="modal-header bg-rose-950/40">
+            <h3 class="modal-title text-rose-300 flex items-center">
+                <i class="fa-brands fa-google-drive text-amber-400 mr-2"></i> Restore Full DB from Google Drive
+            </h3>
+            <button type="button" class="modal-close" onclick="closeModal('modal-admin-drive-restore')">&times;</button>
+        </div>
+        <div class="modal-body space-y-4">
+            <div class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-200">
+                <strong>CRITICAL WARNING:</strong> This will download the selected backup from Google Drive and restore all users, events, and transactions across the entire system.
+            </div>
+
+            <!-- Available Drive Backups Dropdown -->
+            <div class="form-group space-y-1.5">
+                <div class="flex items-center justify-between">
+                    <label class="form-label mb-0">Select Global Backup from Google Drive:</label>
+                    <button type="button" onclick="loadAdminDriveBackupFiles()" class="text-[11px] text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
+                        <i class="fa-solid fa-arrows-rotate text-[10px]"></i> Refresh Files
+                    </button>
+                </div>
+                <select id="admin-drive-backup-select" class="form-select text-xs">
+                    <option value="">-- Click 'Refresh Files' to list Google Drive backups --</option>
+                </select>
+            </div>
+
+            <!-- Or Enter File ID -->
+            <div class="form-group">
+                <label class="form-label">Or Enter Google Drive File ID Directly:</label>
+                <input type="text" id="admin-drive-file-id-input" class="form-input text-xs font-mono" placeholder="e.g. 1abc98234-xyz...">
+            </div>
+
+            <div class="modal-footer flex justify-end space-x-2 pt-4">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-admin-drive-restore')">Cancel</button>
+                <button type="button" onclick="submitAdminDriveRestore()" id="btn-submit-drive-restore" class="btn-danger-gradient">
+                    <i class="fa-solid fa-cloud-arrow-down mr-1"></i> Download & Restore Database
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 {% endif %}

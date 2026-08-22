@@ -958,6 +958,70 @@ def admin_global_restore():
         return jsonify({"status": "error", "message": str(e)}), 400
 
 
+@api_bp.route("/admin/drive/backup", methods=["POST"])
+@admin_required
+@log_execution
+def admin_global_drive_backup():
+    """
+    Backup Full Database to Google Drive (Admin Only)
+    ---
+    tags:
+      - Admin
+    summary: Dumps entire platform database and saves directly to the Admin's Google Drive destination folder
+    responses:
+      200:
+        description: Global database backup uploaded to Drive
+      403:
+        description: Forbidden (Admin only)
+    """
+    try:
+        res = BackupService.backup_global_database_to_google_drive(current_user.id)
+        return jsonify(res), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@api_bp.route("/admin/drive/restore", methods=["POST"])
+@admin_required
+@log_execution
+def admin_global_drive_restore():
+    """
+    Restore Full Database from Google Drive (Admin Only)
+    ---
+    tags:
+      - Admin
+    summary: Downloads a global DB backup JSON file from Google Drive and performs atomic database restore
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - file_id
+          properties:
+            file_id:
+              type: string
+              example: "1abc..."
+    responses:
+      200:
+        description: Full database restored from Drive
+      400:
+        description: Restore failed
+    """
+    data = request.get_json(silent=True) or request.form.to_dict()
+    file_id = data.get("file_id")
+    if not file_id:
+        return jsonify({"status": "error", "message": "Google Drive File ID is required for restore."}), 400
+
+    try:
+        ip_addr = request.headers.get("X-Forwarded-For", request.remote_addr)
+        res = BackupService.restore_global_database_from_google_drive(current_user.id, file_id=file_id, ip_address=ip_addr)
+        return jsonify(res), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
 @api_bp.route("/admin/stats", methods=["GET"])
 @admin_required
 @log_execution

@@ -1429,7 +1429,7 @@ function openAdminRestoreModal() {
 
 async function submitAdminRestore(e) {
     e.preventDefault();
-    if (!confirm('CRITICAL WARNING: This will replace the current database with the uploaded backup. Continue?')) {
+    if (!confirm('CRITICAL WARNING: This will replace the entire database with the uploaded backup. Continue?')) {
         return;
     }
 
@@ -1462,6 +1462,112 @@ async function submitAdminRestore(e) {
     } finally {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
+    }
+}
+
+// Admin Google Drive Full Database Backup
+async function triggerAdminGlobalDriveBackup() {
+    showToast('Exporting entire database and uploading to Google Drive...', 'info');
+    try {
+        const res = await fetch('/api/admin/drive/backup', { method: 'POST' });
+        const data = await res.json();
+
+        if (res.ok && data.status === 'success') {
+            showToast('Full database successfully backed up to your Google Drive!', 'success');
+            loadAdminStats();
+        } else {
+            showToast(data.message || 'Global Drive backup failed', 'error');
+        }
+    } catch (err) {
+        showToast('Error communicating with Google Drive', 'error');
+    }
+}
+
+// Open Admin Google Drive Restore Modal
+function openAdminDriveRestoreModal() {
+    openModal('modal-admin-drive-restore');
+    loadAdminDriveBackupFiles();
+}
+
+// Load and list Google Drive backup JSON files for Admin
+async function loadAdminDriveBackupFiles() {
+    const select = document.getElementById('admin-drive-backup-select');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">-- Scanning Google Drive for database backup files... --</option>';
+
+    try {
+        const res = await fetch('/api/drive/folders?parent_id=root');
+        const data = res.ok ? await res.json() : { status: 'error' };
+
+        if (data.status === 'success') {
+            const files = data.files || [];
+            // Filter JSON files or global backup files
+            const backupFiles = files.filter(f => f.name.endsWith('.json') || f.name.includes('BACKUP') || f.mimeType.includes('json'));
+
+            if (backupFiles.length === 0) {
+                select.innerHTML = '<option value="">-- No JSON backup files found in Drive root -- (Enter File ID below)</option>';
+            } else {
+                select.innerHTML = '<option value="">-- Select a Google Drive Backup File --</option>' +
+                    backupFiles.map(f => `
+                        <option value="${f.id}">
+                            📦 ${escapeHtml(f.name)} (${formatDriveFileSize(f.size)})
+                        </option>
+                    `).join('');
+            }
+        } else {
+            select.innerHTML = '<option value="">-- Please connect Google Drive first --</option>';
+        }
+    } catch (err) {
+        select.innerHTML = '<option value="">-- Error scanning Drive backups --</option>';
+    }
+}
+
+// Submit Admin Google Drive Restore
+async function submitAdminDriveRestore() {
+    const select = document.getElementById('admin-drive-backup-select');
+    const idInput = document.getElementById('admin-drive-file-id-input');
+    const selectedFileId = (select && select.value) ? select.value.trim() : '';
+    const manualFileId = (idInput && idInput.value) ? idInput.value.trim() : '';
+
+    const targetFileId = selectedFileId || manualFileId;
+    if (!targetFileId) {
+        showToast('Please select a backup file from Google Drive or enter a File ID.', 'warning');
+        return;
+    }
+
+    if (!confirm('CRITICAL WARNING: Restoring from Google Drive will OVERWRITE the entire database (all users, events, and transactions). Do you want to proceed?')) {
+        return;
+    }
+
+    const btn = document.getElementById('btn-submit-drive-restore');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Downloading & Restoring DB...';
+
+    try {
+        const res = await fetch('/api/admin/drive/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_id: targetFileId })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.status === 'success') {
+            const counts = data.restored_counts || {};
+            showToast(`Database restored! (${counts.users || 0} users, ${counts.events || 0} events, ${counts.transactions || 0} txns)`, 'success');
+            closeModal('modal-admin-drive-restore');
+            setTimeout(() => {
+                location.reload();
+            }, 1200);
+        } else {
+            showToast(data.message || 'Drive database restore failed', 'error');
+        }
+    } catch (err) {
+        showToast('Error communicating during restore', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
     }
 }
 
