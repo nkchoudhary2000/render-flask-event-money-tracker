@@ -1,0 +1,766 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Event Money Tracker{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+
+    <!-- Top Action & Event Selector Bar -->
+    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 sm:p-5 mb-5 sm:mb-6 shadow-xl backdrop-blur-xl flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
+        <!-- Event Picker -->
+        <div class="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+            <div class="flex items-center gap-1.5 sm:gap-2 flex-grow sm:flex-grow-0 min-w-0">
+                <span class="text-[11px] sm:text-xs uppercase tracking-wider font-bold text-indigo-400 whitespace-nowrap hidden sm:inline">Active Event:</span>
+                <select id="event-selector" class="w-full sm:w-auto bg-slate-800 border border-slate-700 text-white font-semibold text-xs sm:text-sm rounded-xl px-3 py-2 outline-none focus:border-indigo-500 cursor-pointer min-w-0 sm:min-w-[200px]" onchange="onEventSelectChange(this.value)">
+                    {% if events %}
+                        {% for ev in events %}
+                            <option value="{{ ev.id }}" {% if active_event and active_event.event.id == ev.id %}selected{% endif %}>
+                                {{ ev.title }} ({{ ev.currency }} {{ "{:,.0f}".format(ev.stats.net_balance if ev.stats else 0) }})
+                            </option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="">No Events Created Yet</option>
+                    {% endif %}
+                </select>
+            </div>
+            <button type="button" onclick="openCreateEventModal()" class="px-2.5 sm:px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shrink-0" title="Create New Event">
+                <i class="fa-solid fa-plus text-indigo-400"></i>
+                <span class="hidden sm:inline">New Event</span>
+            </button>
+        </div>
+
+        <!-- Quick Action CTA Buttons -->
+        <div class="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-2.5 w-full md:w-auto">
+            <button type="button" onclick="openAddTransactionModal('EXPENSE')" class="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-rose-600/20 transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-arrow-trend-down"></i>
+                <span class="hidden sm:inline">+ Add Expense</span>
+                <span class="sm:hidden">- Expense</span>
+            </button>
+            <button type="button" onclick="openAddTransactionModal('INCOME')" class="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-hand-holding-dollar"></i>
+                <span class="hidden sm:inline">+ Add Gift</span>
+                <span class="sm:hidden">+ Gift / Shagun</span>
+            </button>
+            <div class="relative dropdown-export col-span-2 sm:col-span-1 flex justify-end sm:block">
+                <button type="button" onclick="toggleExportMenu()" class="w-full sm:w-9 h-8 sm:h-9 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-xl flex items-center justify-center gap-1.5 sm:gap-0 transition text-xs" title="Export / Backup Data">
+                    <i class="fa-solid fa-download text-xs"></i>
+                    <span class="sm:hidden text-[11px] font-semibold">Export / Cloud Backup</span>
+                </button>
+                <div id="export-dropdown-menu" class="dropdown-menu hidden">
+                    <a href="/api/backup/export?format=json" class="dropdown-item">
+                        <i class="fa-solid fa-file-code text-indigo-400 mr-2"></i> Export JSON
+                    </a>
+                    <a href="/api/backup/export?format=csv" class="dropdown-item">
+                        <i class="fa-solid fa-file-csv text-emerald-400 mr-2"></i> Export CSV
+                    </a>
+                    <button type="button" onclick="triggerDriveBackup()" class="dropdown-item w-full text-left">
+                        <i class="fa-brands fa-google-drive text-amber-400 mr-2"></i> Backup to Google Drive
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 0ms Lag Instant Tab Switcher Navigation (Mobile Horizontally Scrollable) -->
+    <div class="overflow-x-auto pb-2 mb-5 sm:mb-6 border-b border-slate-800 scrollbar-none">
+        <nav class="flex gap-1.5 sm:gap-2 min-w-max" aria-label="Dashboard Tabs">
+            <button type="button" class="tab-btn active px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm flex items-center" data-tab="overview" onclick="switchTab('overview')" title="Overview & Metrics">
+                <i class="fa-solid fa-chart-pie text-indigo-400 mr-1.5 sm:mr-2"></i>
+                <span>Overview</span>
+            </button>
+            <button type="button" class="tab-btn px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm flex items-center" data-tab="transactions" onclick="switchTab('transactions')" title="Transactions & Cash Flow">
+                <i class="fa-solid fa-list-check text-emerald-400 mr-1.5 sm:mr-2"></i>
+                <span>Transactions</span>
+            </button>
+            <button type="button" class="tab-btn px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm flex items-center" data-tab="categories" onclick="switchTab('categories')" title="Categories & Budgets">
+                <i class="fa-solid fa-tags text-amber-400 mr-1.5 sm:mr-2"></i>
+                <span>Categories</span>
+            </button>
+            <button type="button" class="tab-btn px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm flex items-center" data-tab="drive" onclick="switchTab('drive')" title="Google Drive Cloud">
+                <i class="fa-brands fa-google-drive text-sky-400 mr-1.5 sm:mr-2"></i>
+                <span>Drive Cloud</span>
+            </button>
+            {% if user.is_admin %}
+            <button type="button" class="tab-btn tab-btn-admin px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm flex items-center" data-tab="admin" onclick="switchTab('admin')" title="Admin Portal">
+                <i class="fa-solid fa-shield-halved text-rose-400 mr-1.5 sm:mr-2"></i>
+                <span>Admin</span>
+            </button>
+            {% endif %}
+        </nav>
+    </div>
+
+    <!-- TAB 1: OVERVIEW & FINANCIAL METRICS -->
+    <section id="tab-overview" class="tab-content active">
+        {% if not events %}
+            <!-- Empty State -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl text-center py-12 sm:py-16 px-4 shadow-xl">
+                <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center mx-auto mb-4 text-indigo-400 text-xl sm:text-2xl shadow-[0_0_25px_rgba(99,102,241,0.2)]">
+                    <i class="fa-solid fa-champagne-glasses"></i>
+                </div>
+                <h2 class="text-xl sm:text-2xl font-bold font-outfit text-white mb-2">Welcome to Event Money Tracker!</h2>
+                <p class="text-slate-400 max-w-md mx-auto mb-6 text-xs sm:text-sm">Create your first wedding, pooja, or celebration event to start managing expenses and gifts seamlessly.</p>
+                <button type="button" onclick="openCreateEventModal()" class="px-5 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs sm:text-sm rounded-xl shadow-lg shadow-indigo-600/25 transition">
+                    <i class="fa-solid fa-sparkles mr-2"></i> Create Your First Event
+                </button>
+            </div>
+        {% else %}
+            <!-- Summary Metric Cards (2 Columns on Mobile, 4 on Desktop) -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-5 sm:mb-6">
+                <!-- Total Incoming Card -->
+                <div class="stat-card p-3.5 sm:p-5">
+                    <div class="flex items-center justify-between mb-1.5 sm:mb-2">
+                        <span class="stat-label text-[10px] sm:text-xs truncate">Incoming (Gifts)</span>
+                        <div class="stat-icon-wrapper w-7 h-7 sm:w-9 sm:h-9 text-xs sm:text-sm bg-emerald-500/10 text-emerald-400 shrink-0">
+                            <i class="fa-solid fa-hand-holding-dollar"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value text-base sm:text-2xl text-emerald-400" id="stat-total-income">
+                        <span class="currency-symbol">{{ active_event.event.currency if active_event else '₹' }}</span>
+                        <span class="stat-number">{{ "{:,.2f}".format(active_event.summary.total_income if active_event else 0) }}</span>
+                    </div>
+                    <div class="stat-subtext text-[10px] sm:text-xs text-slate-400 truncate">Guests & Family</div>
+                </div>
+
+                <!-- Total Outgoing Card -->
+                <div class="stat-card p-3.5 sm:p-5">
+                    <div class="flex items-center justify-between mb-1.5 sm:mb-2">
+                        <span class="stat-label text-[10px] sm:text-xs truncate">Outgoing (Expenses)</span>
+                        <div class="stat-icon-wrapper w-7 h-7 sm:w-9 sm:h-9 text-xs sm:text-sm bg-rose-500/10 text-rose-400 shrink-0">
+                            <i class="fa-solid fa-arrow-trend-down"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value text-base sm:text-2xl text-rose-400" id="stat-total-expense">
+                        <span class="currency-symbol">{{ active_event.event.currency if active_event else '₹' }}</span>
+                        <span class="stat-number">{{ "{:,.2f}".format(active_event.summary.total_expense if active_event else 0) }}</span>
+                    </div>
+                    <div class="stat-subtext text-[10px] sm:text-xs text-slate-400 truncate">Vendors & Bills</div>
+                </div>
+
+                <!-- Net Cash Flow Balance Card -->
+                <div class="stat-card p-3.5 sm:p-5">
+                    <div class="flex items-center justify-between mb-1.5 sm:mb-2">
+                        <span class="stat-label text-[10px] sm:text-xs truncate">Net Balance</span>
+                        <div class="stat-icon-wrapper w-7 h-7 sm:w-9 sm:h-9 text-xs sm:text-sm bg-indigo-500/10 text-indigo-400 shrink-0">
+                            <i class="fa-solid fa-scale-balanced"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value text-base sm:text-2xl" id="stat-net-balance">
+                        <span class="currency-symbol">{{ active_event.event.currency if active_event else '₹' }}</span>
+                        <span class="stat-number {% if active_event and active_event.summary.net_balance >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">
+                            {{ "{:,.2f}".format(active_event.summary.net_balance if active_event else 0) }}
+                        </span>
+                    </div>
+                    <div class="stat-subtext text-[10px] sm:text-xs text-slate-400 truncate">Cash in Hand</div>
+                </div>
+
+                <!-- Budget & Utilization Card -->
+                <div class="stat-card p-3.5 sm:p-5">
+                    <div class="flex items-center justify-between mb-1.5 sm:mb-2">
+                        <span class="stat-label text-[10px] sm:text-xs truncate">Budget Limit</span>
+                        <div class="stat-icon-wrapper w-7 h-7 sm:w-9 sm:h-9 text-xs sm:text-sm bg-amber-500/10 text-amber-400 shrink-0">
+                            <i class="fa-solid fa-bullseye"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value text-base sm:text-2xl text-amber-400" id="stat-budget-limit">
+                        <span class="currency-symbol">{{ active_event.event.currency if active_event else '₹' }}</span>
+                        <span class="stat-number">{{ "{:,.2f}".format(active_event.summary.budget_limit if active_event and active_event.summary.budget_limit else 0) }}</span>
+                    </div>
+                    <div class="budget-progress-container mt-1.5 sm:mt-2">
+                        <div class="budget-progress-bar" id="stat-budget-bar" style="width: {{ active_event.summary.budget_utilization if active_event else 0 }}%;"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] sm:text-xs text-slate-400 mt-1">
+                        <span id="stat-budget-used">{{ active_event.summary.budget_utilization if active_event else 0 }}% Spent</span>
+                        <span id="stat-budget-remain">
+                            {% if active_event and active_event.summary.budget_remaining is not none %}
+                                {{ "{:,.0f}".format(active_event.summary.budget_remaining) }} left
+                            {% else %}
+                                No Limit
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visual Charts & Insights Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-5 sm:mb-6">
+                <!-- Doughnut Breakdown Chart -->
+                <div class="dashboard-panel lg:col-span-1">
+                    <div class="panel-header flex items-center justify-between p-3.5 sm:p-4">
+                        <h3 class="panel-title flex items-center text-sm sm:text-base"><i class="fa-solid fa-chart-pie mr-2 text-indigo-400"></i>Expenses Breakdown</h3>
+                        <span class="text-xs text-slate-400 font-semibold" id="chart-total-count">{{ active_event.summary.transaction_count if active_event else 0 }} Txns</span>
+                    </div>
+                    <div class="panel-body flex flex-col items-center justify-center p-4">
+                        <div class="chart-canvas-wrapper relative w-full max-w-[200px] sm:max-w-[220px] aspect-square my-2">
+                            <canvas id="categoryExpenseChart"></canvas>
+                        </div>
+                        <div id="category-legend-list" class="category-legend-grid mt-4 w-full">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Leaderboards: Top Payees & Top Gift Contributors -->
+                <div class="dashboard-panel lg:col-span-2">
+                    <div class="panel-header p-3.5 sm:p-4">
+                        <h3 class="panel-title flex items-center text-sm sm:text-base"><i class="fa-solid fa-ranking-star mr-2 text-amber-400"></i>Key Contributors & Major Expenses</h3>
+                    </div>
+                    <div class="panel-body p-3.5 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                        <!-- Top Gift Contributors -->
+                        <div class="leaderboard-box">
+                            <h4 class="text-[11px] sm:text-xs uppercase font-bold tracking-wider text-emerald-400 mb-2.5 flex items-center">
+                                <i class="fa-solid fa-gift mr-1.5 sm:mr-2"></i> Top Gifts / Shagun
+                            </h4>
+                            <div id="top-contributors-list" class="space-y-1.5 sm:space-y-2">
+                                {% if active_event and active_event.top_contributors %}
+                                    {% for c in active_event.top_contributors %}
+                                        <div class="leaderboard-row">
+                                            <span class="font-medium text-slate-200 text-xs truncate max-w-[120px] sm:max-w-[160px]">{{ c.name }}</span>
+                                            <span class="font-bold text-emerald-400 text-xs">+{{ active_event.event.currency }} {{ "{:,.2f}".format(c.amount) }}</span>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="text-xs text-slate-400 py-3 text-center">No incoming gifts recorded yet.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Major Payees / Vendors -->
+                        <div class="leaderboard-box">
+                            <h4 class="text-[11px] sm:text-xs uppercase font-bold tracking-wider text-rose-400 mb-2.5 flex items-center">
+                                <i class="fa-solid fa-store mr-1.5 sm:mr-2"></i> Major Vendors & Payees
+                            </h4>
+                            <div id="top-payees-list" class="space-y-1.5 sm:space-y-2">
+                                {% if active_event and active_event.top_payees %}
+                                    {% for p in active_event.top_payees %}
+                                        <div class="leaderboard-row">
+                                            <span class="font-medium text-slate-200 text-xs truncate max-w-[120px] sm:max-w-[160px]">{{ p.name }}</span>
+                                            <span class="font-bold text-rose-400 text-xs">-{{ active_event.event.currency }} {{ "{:,.2f}".format(p.amount) }}</span>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="text-xs text-slate-400 py-3 text-center">No expenses recorded yet.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity Section -->
+            <div class="dashboard-panel">
+                <div class="panel-header flex items-center justify-between p-3.5 sm:p-4">
+                    <h3 class="panel-title flex items-center text-sm sm:text-base"><i class="fa-solid fa-clock-rotate-left mr-2 text-indigo-400"></i>Recent Transactions</h3>
+                    <button type="button" onclick="switchTab('transactions')" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition">
+                        View All <i class="fa-solid fa-arrow-right ml-1"></i>
+                    </button>
+                </div>
+                <div class="panel-body p-0 overflow-x-auto">
+                    <table class="table-custom">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Party Name</th>
+                                <th>Category</th>
+                                <th>Mode</th>
+                                <th>Amount</th>
+                                <th>Receipt</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overview-recent-tbody">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+    </section>
+
+    <!-- TAB 2: TRANSACTIONS & CASH FLOW -->
+    <section id="tab-transactions" class="tab-content">
+        <div class="dashboard-panel">
+            <!-- Filter & Search Header with Mobile Collapsible Drawer -->
+            <div class="p-3.5 sm:p-5 border-b border-slate-800 bg-slate-900/50 flex flex-col gap-3">
+                <!-- Search and Action Top Bar -->
+                <div class="flex items-center gap-2">
+                    <!-- Search Input -->
+                    <div class="relative flex-grow">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none"></i>
+                        <input type="text" id="txn-search-input" onkeyup="filterTransactionsLive()" class="w-full bg-slate-800/80 border border-slate-700/80 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 text-white text-xs rounded-xl pl-8 sm:pl-9 pr-3 py-2 sm:py-2.5 outline-none transition" placeholder="Search payee, notes...">
+                    </div>
+
+                    <!-- Mobile Collapsible Filter Toggle Button -->
+                    <button type="button" onclick="toggleMobileFilters()" id="btn-toggle-filters" class="lg:hidden px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs flex items-center gap-1.5 shrink-0 transition" title="Toggle Filters">
+                        <i class="fa-solid fa-sliders text-indigo-400"></i>
+                        <span class="hidden xs:inline">Filters</span>
+                    </button>
+
+                    <!-- Add Entry Button -->
+                    <button type="button" onclick="openAddTransactionModal('EXPENSE')" class="px-3 sm:px-3.5 py-2 sm:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                        <span class="hidden sm:inline">Add Entry</span>
+                    </button>
+                </div>
+
+                <!-- Filters: Collapsible on Mobile, Inline on Desktop (lg:flex) -->
+                <div id="txn-filters-container" class="hidden lg:flex flex-wrap items-center gap-2 pt-1 lg:pt-0">
+                    <select id="txn-type-filter" onchange="filterTransactionsLive()" class="w-full sm:w-auto bg-slate-800/80 border border-slate-700/80 text-slate-200 text-xs rounded-xl px-3 py-2 outline-none focus:border-indigo-500 cursor-pointer">
+                        <option value="">All Types (In & Out)</option>
+                        <option value="EXPENSE">Expenses (Outgoing)</option>
+                        <option value="INCOME">Gifts / Shagun (Incoming)</option>
+                    </select>
+
+                    <select id="txn-category-filter" onchange="filterTransactionsLive()" class="w-full sm:w-auto bg-slate-800/80 border border-slate-700/80 text-slate-200 text-xs rounded-xl px-3 py-2 outline-none focus:border-indigo-500 cursor-pointer">
+                        <option value="">All Categories</option>
+                    </select>
+
+                    <select id="txn-mode-filter" onchange="filterTransactionsLive()" class="w-full sm:w-auto bg-slate-800/80 border border-slate-700/80 text-slate-200 text-xs rounded-xl px-3 py-2 outline-none focus:border-indigo-500 cursor-pointer">
+                        <option value="">All Modes</option>
+                        <option value="CASH">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                        <option value="CARD">Card</option>
+                        <option value="CHEQUE">Cheque</option>
+                        <option value="OTHER">Other</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Transactions Table -->
+            <div class="panel-body p-0 overflow-x-auto">
+                <table class="table-custom" id="main-transactions-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Payee / Contributor</th>
+                            <th>Category</th>
+                            <th>Mode / Ref</th>
+                            <th>Notes</th>
+                            <th>Amount</th>
+                            <th>Receipt</th>
+                            <th class="text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactions-tbody">
+                        <tr>
+                            <td colspan="9" class="text-center py-8 text-slate-400 text-xs">Loading transactions...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- TAB 3: CATEGORIES & BUDGETS -->
+    <section id="tab-categories" class="tab-content">
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <div>
+                <h3 class="text-base sm:text-lg font-bold text-white font-outfit">Categories & Budgets</h3>
+                <p class="text-[11px] sm:text-xs text-slate-400">Custom categories & budget limits for current event</p>
+            </div>
+            <button type="button" onclick="openCreateCategoryModal()" class="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                <i class="fa-solid fa-folder-plus text-xs"></i>
+                <span class="hidden sm:inline">Create Custom Category</span>
+                <span class="sm:hidden">+ Category</span>
+            </button>
+        </div>
+
+        <div id="categories-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <!-- Populated dynamically via JS -->
+        </div>
+    </section>
+
+    <!-- TAB 4: GOOGLE DRIVE CLOUD INTEGRATION -->
+    <section id="tab-drive" class="tab-content">
+        <div class="dashboard-panel max-w-4xl mx-auto">
+            <div class="panel-header p-4 sm:p-5">
+                <h3 class="panel-title flex items-center text-sm sm:text-base">
+                    <i class="fa-brands fa-google-drive text-amber-400 mr-2 text-lg sm:text-xl"></i> Google Drive Cloud Sync
+                </h3>
+            </div>
+            <div class="panel-body p-4 sm:p-6 space-y-4 sm:space-y-6">
+                <!-- Drive Status Box -->
+                <div class="p-4 sm:p-5 rounded-2xl border border-slate-700 bg-slate-800/40">
+                    <div class="flex items-center justify-between flex-wrap gap-4">
+                        <div class="flex items-center space-x-3 sm:space-x-4">
+                            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                                <i class="fa-brands fa-google-drive text-xl sm:text-2xl text-emerald-400"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-xs sm:text-sm font-bold text-white">
+                                    Status: 
+                                    <span id="drive-status-badge" class="{% if drive_status.connected %}text-emerald-400{% else %}text-amber-400{% endif %}">
+                                        {{ 'Connected' if drive_status.connected else 'Local Storage Mode' }}
+                                    </span>
+                                </h4>
+                                <p class="text-[11px] sm:text-xs text-slate-400" id="drive-status-msg">{{ drive_status.message }}</p>
+                            </div>
+                        </div>
+
+                        {% if not drive_status.connected %}
+                            <a href="{{ url_for('auth.google_login') }}" class="btn-google text-xs py-2 px-3.5">
+                                <i class="fa-brands fa-google mr-1.5"></i> Connect Google Drive
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Folder Settings -->
+                <div class="p-4 sm:p-5 rounded-2xl border border-slate-700 bg-slate-800/20">
+                    <h4 class="text-xs sm:text-sm font-bold text-slate-200 mb-1.5">Designated Google Drive Folder</h4>
+                    <p class="text-[11px] sm:text-xs text-slate-400 mb-3 sm:mb-4">Receipts uploaded to transactions and data backups will automatically be stored inside this folder.</p>
+                    
+                    <form id="drive-folder-form" onsubmit="submitDriveFolder(event)" class="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
+                        <input type="text" id="drive-folder-input" class="w-full bg-slate-800/80 border border-slate-700/80 text-white text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-indigo-500 flex-grow" value="{{ drive_status.folder_name or 'EventMoneyTracker_Receipts' }}" placeholder="Folder Name">
+                        <button type="submit" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+                            <i class="fa-solid fa-floppy-disk"></i> Update Folder Name
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Cloud Backup Action -->
+                <div class="p-4 sm:p-5 rounded-2xl border border-slate-700 bg-slate-800/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                    <div>
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-200">1-Click Cloud Data Backup</h4>
+                        <p class="text-[11px] sm:text-xs text-slate-400">Save a timestamped JSON copy of all events and transactions to Google Drive.</p>
+                    </div>
+                    <button type="button" onclick="triggerDriveBackup()" class="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Backup Now to Drive
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- TAB 5: ADMIN PORTAL (Admin Only) -->
+    {% if user.is_admin %}
+    <section id="tab-admin" class="tab-content">
+        <div class="dashboard-panel mb-6">
+            <div class="panel-header flex items-center justify-between p-3.5 sm:p-4">
+                <h3 class="panel-title flex items-center text-sm sm:text-base">
+                    <i class="fa-solid fa-shield-halved text-indigo-400 mr-2"></i> Global Admin Control Panel
+                </h3>
+                <span class="badge-admin">Admin Privileges Active</span>
+            </div>
+            <div class="panel-body p-4 sm:p-6 space-y-5 sm:space-y-6">
+                <!-- System Counters -->
+                <div class="grid grid-cols-3 gap-2.5 sm:gap-4">
+                    <div class="stat-card p-3 sm:p-4">
+                        <span class="stat-label text-[10px] sm:text-xs">Total Users</span>
+                        <div class="stat-value text-base sm:text-2xl text-indigo-400" id="admin-count-users">-</div>
+                    </div>
+                    <div class="stat-card p-3 sm:p-4">
+                        <span class="stat-label text-[10px] sm:text-xs">Total Events</span>
+                        <div class="stat-value text-base sm:text-2xl text-emerald-400" id="admin-count-events">-</div>
+                    </div>
+                    <div class="stat-card p-3 sm:p-4">
+                        <span class="stat-label text-[10px] sm:text-xs">Total Txns</span>
+                        <div class="stat-value text-base sm:text-2xl text-amber-400" id="admin-count-txns">-</div>
+                    </div>
+                </div>
+
+                <!-- Global Backup & Restore Controls -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                    <!-- Global Backup Card -->
+                    <div class="p-4 sm:p-5 rounded-2xl border border-indigo-500/30 bg-indigo-950/20">
+                        <h4 class="text-xs sm:text-sm font-bold text-white mb-1.5 flex items-center">
+                            <i class="fa-solid fa-database text-indigo-400 mr-2"></i> Global Database Backup
+                        </h4>
+                        <p class="text-[11px] sm:text-xs text-slate-300 mb-3 sm:mb-4">Export complete database state with SHA-256 integrity verification.</p>
+                        <a href="/api/admin/backup" class="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition inline-flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-arrow-down"></i> Download Global DB Backup (JSON)
+                        </a>
+                    </div>
+
+                    <!-- Global Restore Card -->
+                    <div class="p-4 sm:p-5 rounded-2xl border border-rose-500/30 bg-rose-950/20">
+                        <h4 class="text-xs sm:text-sm font-bold text-rose-300 mb-1.5 flex items-center">
+                            <i class="fa-solid fa-triangle-exclamation text-rose-400 mr-2"></i> Global Database Restore
+                        </h4>
+                        <p class="text-[11px] sm:text-xs text-slate-300 mb-3 sm:mb-4">Restore database from a validated JSON backup with automatic transaction rollback.</p>
+                        <button type="button" onclick="openAdminRestoreModal()" class="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-semibold rounded-xl shadow-md shadow-rose-600/20 transition inline-flex items-center gap-1.5">
+                            <i class="fa-solid fa-upload"></i> Restore Database from File
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Registered Users Table -->
+                <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-200 flex items-center">
+                            <i class="fa-solid fa-users text-indigo-400 mr-2"></i> Registered Users & Accounts
+                        </h4>
+                        <span class="text-[11px] sm:text-xs text-slate-400" id="admin-users-badge">Active Accounts</span>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl border border-slate-800">
+                        <table class="table-custom">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>User</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Google Auth</th>
+                                    <th>Events</th>
+                                    <th>Txns</th>
+                                    <th>Joined</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-users-tbody">
+                                <tr>
+                                    <td colspan="8" class="text-center py-6 text-slate-400 text-xs">Loading registered users...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Security & Transaction Audit Logs -->
+                <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-200 flex items-center">
+                            <i class="fa-solid fa-shield-cat text-amber-400 mr-2"></i> Security & Audit Trail
+                        </h4>
+                        <button type="button" onclick="loadAdminStats()" class="text-xs text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
+                            <i class="fa-solid fa-rotate-right"></i> Refresh Trail
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl border border-slate-800">
+                        <table class="table-custom">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>User</th>
+                                    <th>Action</th>
+                                    <th>IP Address</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-audit-tbody">
+                                <tr>
+                                    <td colspan="5" class="text-center py-6 text-slate-400 text-xs">Loading audit history...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- CLIENT MODALS (ZERO-LAG PRE-RENDERED)                                      -->
+<!-- ========================================================================= -->
+
+<!-- 1. CREATE EVENT MODAL -->
+<div id="modal-create-event" class="modal-overlay hidden">
+    <div class="modal-card max-w-lg">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="fa-solid fa-calendar-plus text-indigo-400 mr-2"></i>Create New Event</h3>
+            <button type="button" class="modal-close" onclick="closeModal('modal-create-event')">&times;</button>
+        </div>
+        <form id="form-create-event" onsubmit="submitCreateEvent(event)" class="modal-body space-y-4">
+            <div class="form-group">
+                <label class="form-label">Event Title *</label>
+                <input type="text" name="title" class="form-input" placeholder="e.g. Anand & Priya Wedding, Ganpati Pooja 2026" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description (Optional)</label>
+                <textarea name="description" class="form-input" rows="2" placeholder="Brief notes about the gathering..."></textarea>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="form-group">
+                    <label class="form-label">Event Date</label>
+                    <input type="date" name="event_date" class="form-input" value="{{ '{:%Y-%m-%d}'.format(now) if now else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Currency</label>
+                    <select name="currency" class="form-select">
+                        <option value="INR">INR (₹)</option>
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="GBP">GBP (£)</option>
+                        <option value="AED">AED (د.إ)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Budget Limit</label>
+                    <input type="number" step="0.01" name="budget_limit" class="form-input" placeholder="Optional">
+                </div>
+            </div>
+            <div class="modal-footer flex justify-end space-x-2 pt-4">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-create-event')">Cancel</button>
+                <button type="submit" class="btn-primary"><i class="fa-solid fa-check mr-1"></i> Create Event</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 2. ADD TRANSACTION (EXPENSE OR INCOME/GIFT) MODAL -->
+<div id="modal-add-transaction" class="modal-overlay hidden">
+    <div class="modal-card max-w-xl">
+        <div class="modal-header">
+            <h3 class="modal-title" id="txn-modal-title"><i class="fa-solid fa-receipt text-indigo-400 mr-2"></i>Add Cash Entry</h3>
+            <button type="button" class="modal-close" onclick="closeModal('modal-add-transaction')">&times;</button>
+        </div>
+        <form id="form-add-transaction" onsubmit="submitAddTransaction(event)" enctype="multipart/form-data" class="modal-body space-y-4">
+            <!-- Type Toggle -->
+            <div class="flex rounded-xl bg-slate-800/80 p-1 border border-slate-700/80">
+                <label class="flex-1 text-center py-2.5 rounded-lg cursor-pointer font-medium text-xs transition" id="label-type-expense">
+                    <input type="radio" name="type" value="EXPENSE" class="sr-only" onchange="updateTxnTypeUI('EXPENSE')" checked>
+                    <i class="fa-solid fa-arrow-trend-down text-rose-400 mr-1"></i> Expense (Outgoing)
+                </label>
+                <label class="flex-1 text-center py-2.5 rounded-lg cursor-pointer font-medium text-xs transition" id="label-type-income">
+                    <input type="radio" name="type" value="INCOME" class="sr-only" onchange="updateTxnTypeUI('INCOME')">
+                    <i class="fa-solid fa-hand-holding-dollar text-emerald-400 mr-1"></i> Gift / Shagun (Incoming)
+                </label>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="form-group">
+                    <label class="form-label">Amount (<span id="modal-curr-symbol">₹</span>) *</label>
+                    <input type="number" step="0.01" min="0.01" name="amount" class="form-input text-lg font-bold" placeholder="0.00" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" id="label-party-name">Payee / Vendor Name *</label>
+                    <input type="text" name="party_name" class="form-input" placeholder="e.g. Royal Caterers / Uncle Ramesh" required>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="form-group">
+                    <label class="form-label">Category</label>
+                    <select name="category_id" id="modal-txn-category-select" class="form-select">
+                        <option value="">-- Select Category --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Payment Mode</label>
+                    <select name="payment_mode" class="form-select">
+                        <option value="CASH">Cash</option>
+                        <option value="UPI">UPI (Google Pay / PhonePe / Paytm)</option>
+                        <option value="BANK_TRANSFER">Bank Transfer / NEFT / IMPS</option>
+                        <option value="CARD">Debit / Credit Card</option>
+                        <option value="CHEQUE">Cheque</option>
+                        <option value="OTHER">Other</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="form-group">
+                    <label class="form-label">Date & Time</label>
+                    <input type="date" name="transaction_date" class="form-input" id="modal-txn-date">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reference No / UPI ID (Optional)</label>
+                    <input type="text" name="reference_no" class="form-input" placeholder="e.g. UPI Ref, Invoice #">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Description / Note</label>
+                <textarea name="description" class="form-input" rows="2" placeholder="Itemized details, purpose of payment, or gift notes..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label flex items-center justify-between">
+                    <span><i class="fa-solid fa-paperclip text-slate-400 mr-1"></i> Attach Receipt / Bill (Upload to Google Drive)</span>
+                </label>
+                <input type="file" name="receipt_file" accept="image/*,application/pdf" class="form-input file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer">
+            </div>
+
+            <div class="modal-footer flex justify-end space-x-2 pt-4">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-add-transaction')">Cancel</button>
+                <button type="submit" id="btn-save-txn" class="btn-primary"><i class="fa-solid fa-floppy-disk mr-1"></i> Save Transaction</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 3. CREATE CATEGORY MODAL -->
+<div id="modal-create-category" class="modal-overlay hidden">
+    <div class="modal-card max-w-md">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="fa-solid fa-tag text-indigo-400 mr-2"></i>Create Custom Category</h3>
+            <button type="button" class="modal-close" onclick="closeModal('modal-create-category')">&times;</button>
+        </div>
+        <form id="form-create-category" onsubmit="submitCreateCategory(event)" class="modal-body space-y-4">
+            <div class="form-group">
+                <label class="form-label">Category Name *</label>
+                <input type="text" name="name" class="form-input" placeholder="e.g. Sound System & DJ, Bride Makeup" required>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="form-group">
+                    <label class="form-label">Type</label>
+                    <select name="type" class="form-select">
+                        <option value="EXPENSE">Expense (Outgoing)</option>
+                        <option value="INCOME">Income / Gift (Incoming)</option>
+                        <option value="BOTH">Both</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Budget Allocation</label>
+                    <input type="number" step="0.01" name="budget" class="form-input" placeholder="Optional">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="form-group">
+                    <label class="form-label">Badge Color</label>
+                    <input type="color" name="color" class="form-input h-10 p-1 cursor-pointer" value="#6366f1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Icon</label>
+                    <select name="icon" class="form-select">
+                        <option value="fa-tag">🏷️ Tag</option>
+                        <option value="fa-gift">🎁 Gift</option>
+                        <option value="fa-utensils">🍽️ Catering</option>
+                        <option value="fa-hotel">🏨 Venue</option>
+                        <option value="fa-camera">📸 Camera</option>
+                        <option value="fa-music">🎵 Music</option>
+                        <option value="fa-gem">💎 Jewelry</option>
+                        <option value="fa-car">🚗 Travel</option>
+                        <option value="fa-holly-berry">✨ Decoration</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer flex justify-end space-x-2 pt-4">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-create-category')">Cancel</button>
+                <button type="submit" class="btn-primary"><i class="fa-solid fa-check mr-1"></i> Save Category</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 4. ADMIN RESTORE DATABASE MODAL -->
+{% if user.is_admin %}
+<div id="modal-admin-restore" class="modal-overlay hidden">
+    <div class="modal-card max-w-lg border-rose-500/50">
+        <div class="modal-header bg-rose-950/40">
+            <h3 class="modal-title text-rose-300"><i class="fa-solid fa-triangle-exclamation text-rose-400 mr-2"></i>Confirm Global Database Restore</h3>
+            <button type="button" class="modal-close" onclick="closeModal('modal-admin-restore')">&times;</button>
+        </div>
+        <form id="form-admin-restore" onsubmit="submitAdminRestore(event)" enctype="multipart/form-data" class="modal-body space-y-4">
+            <div class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-200">
+                <strong>WARNING:</strong> Restoring the database will replace the current state with the uploaded backup file. This operation runs in a safe atomic transaction and will rollback if the file is invalid.
+            </div>
+            <div class="form-group">
+                <label class="form-label">Select JSON Backup File *</label>
+                <input type="file" name="backup_file" accept=".json,application/json" class="form-input file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:bg-rose-600 file:text-white hover:file:bg-rose-500 cursor-pointer" required>
+            </div>
+            <div class="modal-footer flex justify-end space-x-2 pt-4">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-admin-restore')">Cancel</button>
+                <button type="submit" id="btn-submit-restore" class="btn-danger-gradient">
+                    <i class="fa-solid fa-bolt mr-1"></i> Execute Database Restore
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
