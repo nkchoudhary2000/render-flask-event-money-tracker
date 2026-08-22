@@ -667,18 +667,25 @@ def list_user_drive_folders():
     tags:
       - Google Drive
     summary: Fetches all available folders in the user's Google Drive for custom folder selection
+    parameters:
+      - name: parent_id
+        in: query
+        type: string
+        default: "root"
     responses:
       200:
         description: List of Drive folders
       400:
         description: Error querying Google Drive
     """
+    parent_id = request.args.get("parent_id", "root")
     try:
-        folders = DriveService.list_user_drive_folders(current_user)
+        data = DriveService.list_user_drive_folders(current_user, parent_id=parent_id)
         return jsonify({
             "status": "success",
-            "count": len(folders),
-            "folders": folders,
+            "current_parent": data.get("current_parent", {}),
+            "folders": data.get("folders", []),
+            "count": len(data.get("folders", [])),
             "current_folder_id": current_user.google_drive_folder_id,
             "current_folder_name": current_user.google_drive_folder_name
         }), 200

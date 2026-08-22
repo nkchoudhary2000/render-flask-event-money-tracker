@@ -113,24 +113,44 @@ class DriveService:
 
     @classmethod
     @log_execution
-    def list_user_drive_folders(cls, user: User) -> list:
+    def list_user_drive_folders(cls, user: User, parent_id: str = "root") -> dict:
         """
-        Lists all available folders in the user's Google Drive so they can select a custom folder.
+        Lists folders inside a specific parent (defaults to 'root') with metadata and web links.
         """
         drive = cls.get_drive_client(user)
-        query = "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        target_parent = parent_id.strip() if (parent_id and parent_id.strip()) else "root"
+
+        query = f"mimeType = 'application/vnd.google-apps.folder' and trashed = false and '{target_parent}' in parents"
         try:
             results = drive.files().list(
                 q=query,
                 spaces="drive",
-                fields="files(id, name, modifiedTime)",
+                fields="files(id, name, modifiedTime, webViewLink, parents)",
                 orderBy="name asc",
                 pageSize=100
             ).execute()
             log_external_api("GoogleDrive", "files().list (Folders)", "GET", payload={"q": query}, response=results)
-            return results.get("files", [])
+
+            current_folder_info = {"id": target_parent, "name": "Google Drive (Root)", "is_root": True, "parents": []}
+            if target_parent != "root":
+                try:
+                    f_info = drive.files().get(fileId=target_parent, fields="id, name, webViewLink, parents").execute()
+                    current_folder_info = {
+                        "id": f_info.get("id"),
+                        "name": f_info.get("name"),
+                        "webViewLink": f_info.get("webViewLink", f"https://drive.google.com/drive/folders/{target_parent}"),
+                        "parents": f_info.get("parents", []),
+                        "is_root": False
+                    }
+                except Exception as ex:
+                    app_logger.warning(f"[DRIVE] Could not get metadata for parent folder {target_parent}: {str(ex)}")
+
+            return {
+                "current_parent": current_folder_info,
+                "folders": results.get("files", [])
+            }
         except Exception as e:
-            app_logger.error(f"[DRIVE] Error listing user Drive folders: {str(e)}")
+            app_logger.error(f"[DRIVE] Error listing user Drive folders under parent '{target_parent}': {str(e)}")
             raise ValueError(f"Could not load Google Drive folders: {str(e)}")
 
     @classmethod

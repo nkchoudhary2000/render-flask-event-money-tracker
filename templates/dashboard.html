@@ -406,53 +406,82 @@
                     </div>
                 </div>
 
-                <!-- Interactive Folder Selector & Creator -->
+                <!-- Interactive Hierarchical Folder Explorer & Selector -->
                 <div class="p-4 sm:p-5 rounded-2xl border border-slate-700 bg-slate-800/20 space-y-4">
                     <div class="flex items-center justify-between flex-wrap gap-2">
                         <div>
-                            <h4 class="text-xs sm:text-sm font-bold text-slate-200">Designated Google Drive Destination Folder</h4>
-                            <p class="text-[11px] sm:text-xs text-slate-400">All transaction receipts and JSON backups will be saved exclusively into this folder.</p>
+                            <h4 class="text-xs sm:text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                                <i class="fa-solid fa-folder-tree text-amber-400"></i> Google Drive Folder Browser & Explorer
+                            </h4>
+                            <p class="text-[11px] sm:text-xs text-slate-400">Browse your Google Drive folders from root, drill down into subfolders, and select your backup destination.</p>
                         </div>
-                        <button type="button" onclick="loadUserDriveFolders(true)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5" title="Scan and reload folders from your Google Drive">
-                            <i class="fa-solid fa-arrows-rotate text-xs"></i> Scan Drive Folders
-                        </button>
-                    </div>
-
-                    <!-- Folder Selection Grid -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 pt-2">
-                        <!-- Option A: Select Existing Drive Folder -->
-                        <div class="p-3.5 sm:p-4 rounded-xl border border-slate-700/80 bg-slate-900/50 space-y-2.5">
-                            <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                                <i class="fa-solid fa-folder-tree text-amber-400"></i> Select Existing Drive Folder:
-                            </label>
-                            <select id="drive-folder-select" onchange="onSelectExistingDriveFolder(this.value)" class="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2.5 outline-none focus:border-indigo-500 cursor-pointer">
-                                <option value="">-- Loading your Google Drive Folders... --</option>
-                            </select>
-                            <p class="text-[10px] text-slate-500">Pick any folder from your Google Drive root.</p>
-                        </div>
-
-                        <!-- Option B: Create / Custom Folder Name -->
-                        <div class="p-3.5 sm:p-4 rounded-xl border border-slate-700/80 bg-slate-900/50 space-y-2.5">
-                            <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                                <i class="fa-solid fa-folder-plus text-indigo-400"></i> Or Create New Folder by Name:
-                            </label>
-                            <form id="drive-folder-form" onsubmit="submitDriveFolder(event)" class="flex gap-2">
-                                <input type="text" id="drive-folder-input" class="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-indigo-500" value="{{ drive_status.folder_name or 'EventMoneyTracker_Receipts' }}" placeholder="e.g. Anand_Wedding_2026">
-                                <button type="submit" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1 shrink-0">
-                                    <i class="fa-solid fa-check"></i> Set
-                                </button>
-                            </form>
-                            <p class="text-[10px] text-slate-500">Creates or links folder by name.</p>
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="btn-drive-up" onclick="navigateDriveFolderUp()" class="hidden px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition items-center gap-1">
+                                <i class="fa-solid fa-arrow-up"></i> Up
+                            </button>
+                            <button type="button" onclick="loadUserDriveFolders(DriveExplorerState.currentParentId, true)" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5" title="Scan and reload folders">
+                                <i class="fa-solid fa-arrows-rotate text-xs"></i> Scan Root
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Currently Active Folder Status Pill -->
-                    <div class="p-3 rounded-xl border border-indigo-500/30 bg-indigo-950/20 flex items-center justify-between text-xs">
-                        <div class="flex items-center space-x-2 text-indigo-200">
-                            <i class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
-                            <span>Active Destination: <strong id="active-drive-folder-name" class="text-white font-mono">{{ drive_status.folder_name or 'EventMoneyTracker_Receipts' }}</strong></span>
+                    <!-- Breadcrumb Path Bar -->
+                    <div class="p-2.5 rounded-xl border border-slate-700/80 bg-slate-900/60 flex items-center justify-between text-xs overflow-x-auto">
+                        <div class="flex items-center gap-1 text-slate-300 min-w-0" id="drive-breadcrumbs">
+                            <button type="button" onclick="navigateToDriveFolder('root', 'Google Drive (Root)')" class="font-bold text-indigo-400 hover:underline flex items-center gap-1">
+                                <i class="fa-brands fa-google-drive"></i> Root
+                            </button>
                         </div>
-                        <span id="active-drive-folder-id" class="text-[10px] font-mono text-slate-400 truncate max-w-[180px]">{{ drive_status.folder_id or '' }}</span>
+                        <a id="link-open-current-in-drive" href="https://drive.google.com" target="_blank" class="text-[11px] text-indigo-400 hover:text-indigo-300 hover:underline flex items-center gap-1 shrink-0 ml-2" title="Open current folder on Google Drive web interface">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Drive
+                        </a>
+                    </div>
+
+                    <!-- Folders List Table / Explorer -->
+                    <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+                        <table class="table-custom">
+                            <thead>
+                                <tr>
+                                    <th>Folder Name</th>
+                                    <th>Status</th>
+                                    <th class="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="drive-folders-tbody">
+                                <tr>
+                                    <td colspan="3" class="text-center py-6 text-slate-400 text-xs">
+                                        <i class="fa-solid fa-spinner fa-spin mr-1"></i> Loading folders from Google Drive root...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Create New Subfolder in Current Location -->
+                    <div class="p-3.5 rounded-xl border border-slate-700/80 bg-slate-900/50 space-y-2">
+                        <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-folder-plus text-indigo-400"></i> Create New Folder in Current Location:
+                        </label>
+                        <form id="drive-folder-form" onsubmit="submitDriveFolder(event)" class="flex flex-col sm:flex-row gap-2">
+                            <input type="text" id="drive-folder-input" class="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3.5 py-2 outline-none focus:border-indigo-500 flex-grow" value="{{ drive_status.folder_name or 'EventMoneyTracker_Receipts' }}" placeholder="e.g. Anand_Wedding_2026">
+                            <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 shrink-0">
+                                <i class="fa-solid fa-plus"></i> Create & Set
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Currently Active Destination Status Pill -->
+                    <div class="p-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div class="flex items-center space-x-2 text-emerald-200">
+                            <i class="fa-solid fa-circle-check text-emerald-400 text-base shrink-0"></i>
+                            <div>
+                                <span>Active Backup Destination: <strong id="active-drive-folder-name" class="text-white font-mono">{{ drive_status.folder_name or 'EventMoneyTracker_Receipts' }}</strong></span>
+                                <div id="active-drive-folder-id" class="text-[10px] font-mono text-slate-400">{{ drive_status.folder_id or '(Not selected yet)' }}</div>
+                            </div>
+                        </div>
+                        <a id="link-open-active-destination" href="{% if drive_status.folder_id %}https://drive.google.com/drive/folders/{{ drive_status.folder_id }}{% else %}https://drive.google.com{% endif %}" target="_blank" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 shrink-0 transition" title="Open designated destination folder in Google Drive">
+                            <i class="fa-brands fa-google-drive"></i> Open Folder in Drive
+                        </a>
                     </div>
                 </div>
 
