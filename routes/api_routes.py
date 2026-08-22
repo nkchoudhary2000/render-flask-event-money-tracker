@@ -8,7 +8,7 @@ from models import User, Event, Category, Transaction, AuditLog
 from services.event_service import EventService
 from services.drive_service import DriveService
 from services.backup_service import BackupService
-from services.auth_service import admin_required
+from services.auth_service import AuthService, admin_required
 from logger import app_logger, log_execution
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -891,6 +891,115 @@ def admin_list_users():
         u_dict["transactions_count"] = Transaction.query.filter(Transaction.event_id.in_(event_ids)).count() if event_ids else 0
         user_list.append(u_dict)
     return jsonify({"status": "success", "count": len(user_list), "users": user_list}), 200
+
+
+@api_bp.route("/admin/users/<int:user_id>", methods=["DELETE"])
+@admin_required
+@log_execution
+def admin_delete_user(user_id: int):
+    """
+    Delete User Account Completely (Admin Only)
+    ---
+    tags:
+      - Admin
+    summary: Deletes a user account and cascades all their events, categories, and transactions
+    parameters:
+      - name: user_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: User account deleted
+      400:
+        description: Validation error or self-deletion attempt
+    """
+    ip_addr = request.headers.get("X-Forwarded-For", request.remote_addr)
+    try:
+        AuthService.delete_user(current_user.id, user_id, ip_address=ip_addr)
+        return jsonify({"status": "success", "message": "User account and all data deleted."}), 200
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@api_bp.route("/admin/users/<int:user_id>/purge", methods=["POST"])
+@admin_required
+@log_execution
+def admin_purge_user_data(user_id: int):
+    """
+    Purge User Financial Data (Admin Only)
+    ---
+    tags:
+      - Admin
+    summary: Purges all events, categories, and transactions belonging to a user while preserving login credentials
+    parameters:
+      - name: user_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: User data purged
+      400:
+        description: User not found
+    """
+    ip_addr = request.headers.get("X-Forwarded-For", request.remote_addr)
+    try:
+        res = AuthService.purge_user_data(current_user.id, user_id, ip_address=ip_addr)
+        return jsonify({
+            "status": "success",
+            "message": f"Successfully purged {res.get('purged_events_count', 0)} events and associated transactions."
+        }), 200
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@api_bp.route("/admin/events", methods=["GET"])
+@admin_required
+@log_execution
+def admin_list_all_events():
+    """
+    List All System Events (Admin Only)
+    ---
+    tags:
+      - Admin
+    summary: Retrieves all events across the entire platform with user ownership and statistics
+    responses:
+      200:
+        description: Array of all events
+      403:
+        description: Admin only
+    """
+    events = EventService.get_all_system_events(is_admin=True)
+    return jsonify({"status": "success", "count": len(events), "events": events}), 200
+
+
+@api_bp.route("/admin/events/<int:event_id>", methods=["DELETE"])
+@admin_required
+@log_execution
+def admin_delete_event(event_id: int):
+    """
+    Delete Any Event (Admin Only)
+    ---
+    tags:
+      - Admin
+    summary: Admin deletion of an event and all its associated transactions
+    parameters:
+      - name: event_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Event deleted
+      400:
+        description: Event not found
+    """
+    try:
+        EventService.delete_event(event_id, current_user.id, is_admin=True)
+        return jsonify({"status": "success", "message": "Event deleted by administrator."}), 200
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 
 @api_bp.route("/admin/audit", methods=["GET"])

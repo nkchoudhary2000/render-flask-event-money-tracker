@@ -485,7 +485,7 @@
                     </div>
                 </div>
 
-                <!-- Registered Users Table -->
+                <!-- Registered Users Table with Data Purging & User Deletion -->
                 <div>
                     <div class="flex items-center justify-between mb-2.5">
                         <h4 class="text-xs sm:text-sm font-bold text-slate-200 flex items-center">
@@ -505,11 +505,42 @@
                                     <th>Events</th>
                                     <th>Txns</th>
                                     <th>Joined</th>
+                                    <th class="text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="admin-users-tbody">
                                 <tr>
-                                    <td colspan="8" class="text-center py-6 text-slate-400 text-xs">Loading registered users...</td>
+                                    <td colspan="9" class="text-center py-6 text-slate-400 text-xs">Loading registered users...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Platform Events & Purge Manager -->
+                <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <h4 class="text-xs sm:text-sm font-bold text-slate-200 flex items-center">
+                            <i class="fa-solid fa-calendar-days text-emerald-400 mr-2"></i> Platform Events & Data Manager
+                        </h4>
+                        <span class="text-[11px] sm:text-xs text-slate-400" id="admin-events-badge">Active Events</span>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl border border-slate-800">
+                        <table class="table-custom">
+                            <thead>
+                                <tr>
+                                    <th>Event Title</th>
+                                    <th>Owner</th>
+                                    <th>Date</th>
+                                    <th>Budget</th>
+                                    <th>Net Balance</th>
+                                    <th>Txns</th>
+                                    <th class="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-events-tbody">
+                                <tr>
+                                    <td colspan="7" class="text-center py-6 text-slate-400 text-xs">Loading platform events...</td>
                                 </tr>
                             </tbody>
                         </table>

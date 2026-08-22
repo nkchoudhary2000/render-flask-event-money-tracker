@@ -31,6 +31,55 @@ class AuthService:
 
     @staticmethod
     @log_execution
+    def delete_user(admin_user_id: int, target_user_id: int, ip_address: str = None) -> bool:
+        """Deletes a user account and cascades all associated data."""
+        if admin_user_id == target_user_id:
+            raise ValueError("You cannot delete your own active administrator account.")
+
+        target = User.query.get(target_user_id)
+        if not target:
+            raise ValueError("User account not found.")
+
+        target_email = target.email
+        db.session.delete(target)
+
+        audit = AuditLog(
+            user_id=admin_user_id,
+            action="USER_DELETED_BY_ADMIN",
+            details=f"Admin ID {admin_user_id} deleted user account ID {target_user_id} ({target_email})",
+            ip_address=ip_address
+        )
+        db.session.add(audit)
+        db.session.commit()
+        log_db_transaction("DELETE", "User", target_user_id)
+        app_logger.info(f"[ADMIN] User ID {target_user_id} ({target_email}) deleted by Admin ID {admin_user_id}")
+        return True
+
+    @staticmethod
+    @log_execution
+    def purge_user_data(admin_user_id: int, target_user_id: int, ip_address: str = None) -> dict:
+        """Purges all events, categories, and transactions for a user while keeping account intact."""
+        target = User.query.get(target_user_id)
+        if not target:
+            raise ValueError("User account not found.")
+
+        event_count = target.events.count()
+        for ev in target.events.all():
+            db.session.delete(ev)
+
+        audit = AuditLog(
+            user_id=admin_user_id,
+            action="USER_DATA_PURGED",
+            details=f"Admin ID {admin_user_id} purged {event_count} events and all transactions for User {target.email}",
+            ip_address=ip_address
+        )
+        db.session.add(audit)
+        db.session.commit()
+        app_logger.info(f"[ADMIN] Purged {event_count} events for User ID {target_user_id} ({target.email})")
+        return {"purged_events_count": event_count}
+
+    @staticmethod
+    @log_execution
     def register_local_user(email: str, password: str, name: str, ip_address: str = None) -> User:
         """
         Registers a new user or sets a password for an existing OAuth user without one.

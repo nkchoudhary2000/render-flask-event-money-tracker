@@ -169,7 +169,25 @@ def run_tests():
         audit_json = res_admin_audit.get_json()
         assert audit_json["status"] == "success" and len(audit_json["logs"]) >= 1
 
-        print(f"[TEST 8/8] Flask Test Client & Admin API Endpoints: SUCCESS -> HTTP 200 on /login, /register, /apidocs/, /api/admin/stats, /api/admin/users, /api/admin/audit")
+        # Admin platform events endpoint
+        res_admin_events = client.get("/api/admin/events")
+        assert res_admin_events.status_code == 200
+        events_json = res_admin_events.get_json()
+        assert events_json["status"] == "success" and len(events_json["events"]) >= 1
+
+        # Admin purge user data
+        guest_user = User.query.filter_by(email="guest@eventtracker.com").first()
+        assert guest_user is not None
+        res_purge = client.post(f"/api/admin/users/{guest_user.id}/purge")
+        assert res_purge.status_code == 200
+        assert guest_user.events.count() == 0
+
+        # Admin delete user
+        res_del_user = client.delete(f"/api/admin/users/{guest_user.id}")
+        assert res_del_user.status_code == 200
+        assert User.query.filter_by(email="guest@eventtracker.com").first() is None
+
+        print(f"[TEST 8/8] Flask Test Client & Admin API Endpoints: SUCCESS -> HTTP 200 on /login, /register, /apidocs/, /api/admin/stats, /api/admin/users, /api/admin/events, /api/admin/users/<id>/purge, /api/admin/users/<id>")
 
     print("=================================================================")
     print("ALL 8 VERIFICATION SUITES PASSED FLAWLESSLY!")

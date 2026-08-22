@@ -861,28 +861,34 @@ async function submitDriveFolder(e) {
 }
 
 // ============================================================================
-// ADMIN PORTAL (USERS, STATS, AUDIT TRAIL)
+// ADMIN PORTAL (USERS, EVENTS, PURGE, STATS, AUDIT TRAIL)
 // ============================================================================
 async function loadAdminStats() {
     const usersTbody = document.getElementById('admin-users-tbody');
+    const eventsTbody = document.getElementById('admin-events-tbody');
     const auditTbody = document.getElementById('admin-audit-tbody');
 
     if (usersTbody && (!usersTbody.children.length || usersTbody.innerText.includes('Loading'))) {
-        usersTbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-400 text-xs">Loading registered users...</td></tr>';
+        usersTbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 text-xs">Loading registered users...</td></tr>';
+    }
+    if (eventsTbody && (!eventsTbody.children.length || eventsTbody.innerText.includes('Loading'))) {
+        eventsTbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 text-xs">Loading platform events...</td></tr>';
     }
     if (auditTbody && (!auditTbody.children.length || auditTbody.innerText.includes('Loading'))) {
         auditTbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400 text-xs">Loading audit history...</td></tr>';
     }
 
     try {
-        const [statsRes, usersRes, auditRes] = await Promise.all([
+        const [statsRes, usersRes, eventsRes, auditRes] = await Promise.all([
             fetch('/api/admin/stats'),
             fetch('/api/admin/users'),
+            fetch('/api/admin/events'),
             fetch('/api/admin/audit?limit=50')
         ]);
 
         const statsData = statsRes.ok ? await statsRes.json() : { status: 'error' };
         const usersData = usersRes.ok ? await usersRes.json() : { status: 'error' };
+        const eventsData = eventsRes.ok ? await eventsRes.json() : { status: 'error' };
         const auditData = auditRes.ok ? await auditRes.json() : { status: 'error' };
 
         // 1. System Counters
@@ -903,7 +909,7 @@ async function loadAdminStats() {
             if (badge) badge.textContent = `${users.length} Registered Accounts`;
 
             if (users.length === 0) {
-                usersTbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-400 text-xs">No users registered in system.</td></tr>';
+                usersTbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-slate-400 text-xs">No users registered in system.</td></tr>';
             } else {
                 usersTbody.innerHTML = users.map(u => `
                     <tr>
@@ -946,12 +952,63 @@ async function loadAdminStats() {
                         <td class="text-xs font-semibold text-slate-300">${u.events_count || 0}</td>
                         <td class="text-xs font-semibold text-slate-300">${u.transactions_count || 0}</td>
                         <td class="text-xs text-slate-400 whitespace-nowrap">${formatDate(u.created_at)}</td>
+                        <td class="text-right whitespace-nowrap">
+                            <div class="inline-flex items-center gap-1.5">
+                                <button type="button" onclick="adminPurgeUserData(${u.id}, '${escapeHtml(u.email)}')" class="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-[11px] font-medium transition" title="Purge all events and transactions for this user">
+                                    <i class="fa-solid fa-broom mr-1"></i> Purge Data
+                                </button>
+                                ${!u.is_admin ? `
+                                    <button type="button" onclick="adminDeleteUser(${u.id}, '${escapeHtml(u.email)}')" class="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-[11px] font-medium transition" title="Delete account and all data">
+                                        <i class="fa-solid fa-trash mr-1"></i> Delete
+                                    </button>
+                                ` : `
+                                    <span class="text-[10px] text-slate-600 px-2 py-1 italic">Protected</span>
+                                `}
+                            </div>
+                        </td>
                     </tr>
                 `).join('');
             }
         }
 
-        // 3. Security & Transaction Audit Trail Table
+        // 3. Platform Events & Purge Manager
+        if (eventsData.status === 'success' && eventsTbody) {
+            const events = eventsData.events || [];
+            const badge = document.getElementById('admin-events-badge');
+            if (badge) badge.textContent = `${events.length} Platform Events`;
+
+            if (events.length === 0) {
+                eventsTbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 text-xs">No events registered on platform.</td></tr>';
+            } else {
+                eventsTbody.innerHTML = events.map(e => `
+                    <tr>
+                        <td>
+                            <div class="font-bold text-slate-200 text-xs">${escapeHtml(e.title)}</div>
+                            <div class="text-[10px] text-slate-400 truncate max-w-[180px]">${escapeHtml(e.description || 'No description')}</div>
+                        </td>
+                        <td>
+                            <div class="text-xs text-slate-300">${escapeHtml(e.owner_name)}</div>
+                            <div class="text-[10px] font-mono text-slate-500">${escapeHtml(e.owner_email)}</div>
+                        </td>
+                        <td class="text-xs text-slate-400 whitespace-nowrap">${e.event_date || '-'} (${e.currency})</td>
+                        <td class="text-xs font-semibold text-slate-300">
+                            ${e.budget_limit ? `${e.currency} ${Number(e.budget_limit).toLocaleString()}` : '<span class="text-slate-500 text-[10px]">None</span>'}
+                        </td>
+                        <td class="text-xs font-bold ${e.stats && e.stats.net_balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}">
+                            ${e.currency} ${e.stats ? Number(e.stats.net_balance).toLocaleString() : 0}
+                        </td>
+                        <td class="text-xs font-semibold text-slate-300">${e.stats ? e.stats.transaction_count : 0}</td>
+                        <td class="text-right">
+                            <button type="button" onclick="adminDeleteEvent(${e.id}, '${escapeHtml(e.title)}')" class="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-medium transition" title="Delete event and all transactions">
+                                <i class="fa-solid fa-trash-can mr-1"></i> Delete
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // 4. Security & Transaction Audit Trail Table
         if (auditData.status === 'success' && auditTbody) {
             const logs = auditData.logs || [];
             if (logs.length === 0) {
@@ -973,7 +1030,7 @@ async function loadAdminStats() {
                     } else if (l.action.includes('BACKUP')) {
                         actionBadgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
                         actionIcon = 'fa-database';
-                    } else if (l.action.includes('DELETE')) {
+                    } else if (l.action.includes('DELETE') || l.action.includes('PURGE')) {
                         actionBadgeClass = 'bg-rose-500/15 text-rose-300 border-rose-500/30';
                         actionIcon = 'fa-trash-can';
                     } else if (l.action.includes('CREATE')) {
@@ -1007,8 +1064,72 @@ async function loadAdminStats() {
         }
     } catch (err) {
         console.error('Failed to load admin stats:', err);
-        if (usersTbody) usersTbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-rose-400 text-xs">Failed to load users.</td></tr>';
+        if (usersTbody) usersTbody.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-rose-400 text-xs">Failed to load users.</td></tr>';
+        if (eventsTbody) eventsTbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-rose-400 text-xs">Failed to load platform events.</td></tr>';
         if (auditTbody) auditTbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-rose-400 text-xs">Failed to load audit history.</td></tr>';
+    }
+}
+
+// Admin Action: Purge All Financial Data for a User
+async function adminPurgeUserData(userId, userEmail) {
+    if (!confirm(`Are you sure you want to PURGE all events, categories, and transactions for user ${userEmail}? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/admin/users/${userId}/purge`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            showToast(`Purged user data: ${data.message}`, 'success');
+            loadAdminStats();
+            loadEvents();
+        } else {
+            showToast(data.message || 'Failed to purge user data', 'error');
+        }
+    } catch (err) {
+        showToast('Error executing user data purge', 'error');
+    }
+}
+
+// Admin Action: Delete User Account Permanently
+async function adminDeleteUser(userId, userEmail) {
+    if (!confirm(`CRITICAL WARNING: Are you sure you want to permanently DELETE the user account ${userEmail} and all their data?`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            showToast(`User account deleted: ${userEmail}`, 'success');
+            loadAdminStats();
+            loadEvents();
+        } else {
+            showToast(data.message || 'Failed to delete user', 'error');
+        }
+    } catch (err) {
+        showToast('Error deleting user account', 'error');
+    }
+}
+
+// Admin Action: Delete Any Event
+async function adminDeleteEvent(eventId, eventTitle) {
+    if (!confirm(`Are you sure you want to delete event "${eventTitle}" and all its associated transactions?`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/admin/events/${eventId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok && data.status === 'success') {
+            showToast(`Event "${eventTitle}" deleted successfully.`, 'success');
+            loadAdminStats();
+            loadEvents();
+        } else {
+            showToast(data.message || 'Failed to delete event', 'error');
+        }
+    } catch (err) {
+        showToast('Error deleting event', 'error');
     }
 }
 

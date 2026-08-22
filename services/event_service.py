@@ -74,6 +74,21 @@ class EventService:
 
     @staticmethod
     @log_execution
+    def get_all_system_events(is_admin: bool = True) -> list:
+        """Fetches all events across the entire system with owner information."""
+        if not is_admin:
+            raise ValueError("Admin privileges required.")
+        events = Event.query.order_by(Event.created_at.desc()).all()
+        result = []
+        for e in events:
+            d = e.to_dict(include_stats=True)
+            d["owner_email"] = e.user.email if e.user else "Deleted User"
+            d["owner_name"] = e.user.name if e.user else "Deleted User"
+            result.append(d)
+        return result
+
+    @staticmethod
+    @log_execution
     def get_event(event_id: int, user_id: int, is_admin: bool = False) -> Event:
         """Fetches an event by ID verifying ownership or admin status."""
         query = Event.query.filter_by(id=event_id)
