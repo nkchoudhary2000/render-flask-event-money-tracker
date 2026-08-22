@@ -1022,6 +1022,32 @@ def admin_global_drive_restore():
         return jsonify({"status": "error", "message": str(e)}), 400
 
 
+@api_bp.route("/admin/drive/backups", methods=["GET"])
+@api_bp.route("/drive/backups", methods=["GET"])
+@login_required
+@log_execution
+def list_drive_backups():
+    """
+    List Available Google Drive Backups
+    ---
+    tags:
+      - Google Drive
+    summary: Scans Google Drive for available database backup files
+    responses:
+      200:
+        description: List of backup files
+    """
+    try:
+        backups = DriveService.list_drive_backups(current_user)
+        return jsonify({
+            "status": "success",
+            "count": len(backups),
+            "backups": backups
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
 @api_bp.route("/admin/stats", methods=["GET"])
 @admin_required
 @log_execution

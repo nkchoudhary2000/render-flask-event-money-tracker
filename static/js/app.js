@@ -1370,13 +1370,16 @@ async function adminPurgeUserData(userId, userEmail) {
         const res = await fetch(`/api/admin/users/${userId}/purge`, { method: 'POST' });
         const data = await res.json();
         if (res.ok && data.status === 'success') {
-            showToast(`Purged user data: ${data.message}`, 'success');
-            loadAdminStats();
-            loadEvents();
+            showToast(data.message || `Purged all financial data for ${userEmail}`, 'success');
+            await loadAdminStats();
+            if (AppState.currentEventId) {
+                loadEventFullData(AppState.currentEventId, true);
+            }
         } else {
             showToast(data.message || 'Failed to purge user data', 'error');
         }
     } catch (err) {
+        console.error('Error executing user data purge:', err);
         showToast('Error executing user data purge', 'error');
     }
 }
@@ -1392,12 +1395,15 @@ async function adminDeleteUser(userId, userEmail) {
         const data = await res.json();
         if (res.ok && data.status === 'success') {
             showToast(`User account deleted: ${userEmail}`, 'success');
-            loadAdminStats();
-            loadEvents();
+            await loadAdminStats();
+            if (AppState.currentEventId) {
+                loadEventFullData(AppState.currentEventId, true);
+            }
         } else {
             showToast(data.message || 'Failed to delete user', 'error');
         }
     } catch (err) {
+        console.error('Error deleting user account:', err);
         showToast('Error deleting user account', 'error');
     }
 }
@@ -1413,12 +1419,17 @@ async function adminDeleteEvent(eventId, eventTitle) {
         const data = await res.json();
         if (res.ok && data.status === 'success') {
             showToast(`Event "${eventTitle}" deleted successfully.`, 'success');
-            loadAdminStats();
-            loadEvents();
+            await loadAdminStats();
+            if (AppState.currentEventId === parseInt(eventId)) {
+                setTimeout(() => { location.reload(); }, 800);
+            } else if (AppState.currentEventId) {
+                loadEventFullData(AppState.currentEventId, true);
+            }
         } else {
             showToast(data.message || 'Failed to delete event', 'error');
         }
     } catch (err) {
+        console.error('Error deleting event:', err);
         showToast('Error deleting event', 'error');
     }
 }
@@ -1497,29 +1508,27 @@ async function loadAdminDriveBackupFiles() {
     select.innerHTML = '<option value="">-- Scanning Google Drive for database backup files... --</option>';
 
     try {
-        const res = await fetch('/api/drive/folders?parent_id=root');
+        const res = await fetch('/api/admin/drive/backups');
         const data = res.ok ? await res.json() : { status: 'error' };
 
         if (data.status === 'success') {
-            const files = data.files || [];
-            // Filter JSON files or global backup files
-            const backupFiles = files.filter(f => f.name.endsWith('.json') || f.name.includes('BACKUP') || f.mimeType.includes('json'));
+            const backups = data.backups || [];
 
-            if (backupFiles.length === 0) {
-                select.innerHTML = '<option value="">-- No JSON backup files found in Drive root -- (Enter File ID below)</option>';
+            if (backups.length === 0) {
+                select.innerHTML = '<option value="">-- No database backup files found in Drive -- (Enter File ID below)</option>';
             } else {
-                select.innerHTML = '<option value="">-- Select a Google Drive Backup File --</option>' +
-                    backupFiles.map(f => `
-                        <option value="${f.id}">
-                            📦 ${escapeHtml(f.name)} (${formatDriveFileSize(f.size)})
+                select.innerHTML = '<option value="">-- Select a Google Drive Backup File (' + backups.length + ' found) --</option>' +
+                    backups.map(b => `
+                        <option value="${b.id}">
+                            📦 ${escapeHtml(b.name)} (${formatDriveFileSize(b.size)}) - [${escapeHtml(b.location || 'Drive')}]
                         </option>
                     `).join('');
             }
         } else {
-            select.innerHTML = '<option value="">-- Please connect Google Drive first --</option>';
+            select.innerHTML = '<option value="">-- Please connect Google Drive first (or enter File ID below) --</option>';
         }
     } catch (err) {
-        select.innerHTML = '<option value="">-- Error scanning Drive backups --</option>';
+        select.innerHTML = '<option value="">-- Error scanning Drive backups (enter File ID below) --</option>';
     }
 }
 

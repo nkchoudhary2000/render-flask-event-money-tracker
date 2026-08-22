@@ -182,6 +182,20 @@ class DriveService:
                     ).execute()
                     folders = res_all.get("files", [])
 
+                # 3. Query root files
+                try:
+                    q_root_files = "mimeType != 'application/vnd.google-apps.folder' and trashed = false and 'root' in parents"
+                    res_rfiles = drive.files().list(
+                        q=q_root_files,
+                        spaces="drive",
+                        fields="files(id, name, mimeType, size, modifiedTime, webViewLink, thumbnailLink)",
+                        orderBy="modifiedTime desc",
+                        pageSize=50
+                    ).execute()
+                    files = res_rfiles.get("files", [])
+                except Exception:
+                    files = []
+
                 current_folder_info = {"id": "root", "name": "My Drive", "is_root": True, "parents": []}
             else:
                 # Query subfolders inside this parent
@@ -227,6 +241,57 @@ class DriveService:
         except Exception as e:
             app_logger.error(f"[DRIVE] Error listing Drive contents for '{target_parent}': {str(e)}")
             raise ValueError(f"Could not load Google Drive contents: {str(e)}")
+
+    @classmethod
+    @log_execution
+    def list_drive_backups(cls, user: User) -> list:
+        """
+        Finds all JSON database backup files across the user's Google Drive and designated folder.
+        """
+        drive = cls.get_drive_client(user)
+        backup_files = []
+        seen_ids = set()
+
+        # 1. Search inside user's designated folder if set
+        if user.google_drive_folder_id:
+            try:
+                q_folder = f"trashed = false and '{user.google_drive_folder_id}' in parents"
+                res_f = drive.files().list(
+                    q=q_folder,
+                    spaces="drive",
+                    fields="files(id, name, size, modifiedTime, webViewLink, mimeType)",
+                    orderBy="modifiedTime desc",
+                    pageSize=50
+                ).execute()
+                for f in res_f.get("files", []):
+                    f_name = f.get("name", "")
+                    f_mime = f.get("mimeType", "")
+                    if f["id"] not in seen_ids and (f_name.endswith(".json") or "BACKUP" in f_name or "json" in f_mime):
+                        f["location"] = user.google_drive_folder_name or "Designated Folder"
+                        backup_files.append(f)
+                        seen_ids.add(f["id"])
+            except Exception as e:
+                app_logger.warning(f"[DRIVE] Error scanning designated folder for backups: {str(e)}")
+
+        # 2. Search globally across Drive for EventMoneyTracker backups or JSON files
+        try:
+            q_global = "trashed = false and (name contains 'EventMoneyTracker' or name contains 'BACKUP' or mimeType = 'application/json' or name contains '.json')"
+            res_g = drive.files().list(
+                q=q_global,
+                spaces="drive",
+                fields="files(id, name, size, modifiedTime, webViewLink, mimeType)",
+                orderBy="modifiedTime desc",
+                pageSize=50
+            ).execute()
+            for f in res_g.get("files", []):
+                if f["id"] not in seen_ids:
+                    f["location"] = "Google Drive"
+                    backup_files.append(f)
+                    seen_ids.add(f["id"])
+        except Exception as e:
+            app_logger.warning(f"[DRIVE] Error scanning global Drive backups: {str(e)}")
+
+        return backup_files
 
     @classmethod
     @log_execution
